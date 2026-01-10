@@ -1,0 +1,16 @@
+name = "brain-scheduler"
+main = "src/index.ts"
+compatibility_date = "2025-12-01"
+
+[vars]
+CONVEX_BRAIN_BASE_URL = "https://<YOUR_DEPLOYMENT>.convex.site"
+OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
+
+# secrets (set via `wrangler secret put ...`)
+# OPENROUTER_API_KEY
+# CONVEX_BRAIN_ADMIN_KEY
+
+[[queues.consumers]]
+queue = "brain-scheduler-queue"
+max_batch_size = 10
+max_batch_timeout = 30

@@ -1,0 +1,18 @@
+{
+  "name": "brain-cloudflare",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev:api": "wrangler dev workers/api-worker/src/index.ts --config workers/api-worker/wrangler.jsonc",
+    "dev:consumer": "wrangler dev workers/consumer-worker/src/index.ts --config workers/consumer-worker/wrangler.jsonc",
+    "dev:sweeper": "wrangler dev workers/sweeper-worker/src/index.ts --config workers/sweeper-worker/wrangler.jsonc",
+    "deploy:api": "wrangler deploy --config workers/api-worker/wrangler.jsonc",
+    "deploy:consumer": "wrangler deploy --config workers/consumer-worker/wrangler.jsonc",
+    "deploy:sweeper": "wrangler deploy --config workers/sweeper-worker/wrangler.jsonc"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20250101.0",
+    "typescript": "^5.6.3",
+    "wrangler": "^4.54.0"
+  }
+}

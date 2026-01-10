@@ -1,0 +1,23 @@
+{
+  "name": "lancedb-vector-service",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "dist/server.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "dev": "tsx watch src/server.ts",
+    "provision": "tsx scripts/provisionTables.ts"
+  },
+  "dependencies": {
+    "@lancedb/lancedb": "^0.15.0",
+    "apache-arrow": "^18.1.0",
+    "fastify": "^5.2.1",
+    "dotenv": "^16.4.7"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.5",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3"
+  }
+}

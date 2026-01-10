@@ -1,0 +1,22 @@
+{
+  "name": "brain-consumer-worker",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-01-01",
+  "kv_namespaces": [
+    { "binding": "BRAIN_KV", "id": "ddf204db66f24ed89a4e64257628decd" }
+  ],
+  "queues": {
+    "consumers": [
+      { "queue": "brain-jobs", "max_batch_size": 10, "max_batch_timeout": 5 }
+    ],
+    "producers": [
+      { "queue": "brain-jobs", "binding": "BRAIN_JOBS" }
+    ]
+  },
+  "vars": {
+    "CONVEX_BRAIN_API_URL": "https://tidy-mole-484.convex.site",
+    "UNKNOWN_SPEAKER_PROMPT_THRESHOLD": "5",
+    "LANCEDB_API_URL": "https://YOUR-VECTOR-SVC.example.com",
+    "NEO4J_QUERY_API_URL": "https://0b18563e.databases.neo4j.io/db/neo4j/query/v2"
+  }
+}
