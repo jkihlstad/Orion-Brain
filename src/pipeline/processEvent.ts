@@ -236,14 +236,14 @@ export class EventProcessor {
       }
 
       // Step 4: Process vector if required (placeholder for future implementation)
-      let vectorUpserted = false;
+      const vectorUpserted = false;
       if (requirements.vectorRequired) {
         // TODO: Implement vector processing
         warnings.push('Vector processing not yet implemented');
       }
 
       // Step 5: Process LLM enrichment if required (placeholder for future implementation)
-      let llmEnriched = false;
+      const llmEnriched = false;
       if (requirements.llmEnrichmentRequired) {
         // TODO: Implement LLM enrichment
         warnings.push('LLM enrichment not yet implemented');

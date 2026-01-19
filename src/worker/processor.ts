@@ -300,20 +300,16 @@ export class EventProcessor {
    * Execute the LangGraph with a timeout.
    */
   private async executeWithTimeout(eventId: string, timeoutMs: number): Promise<BrainState> {
-    return new Promise<BrainState>(async (resolve, reject) => {
-      const timeoutId = setTimeout(() => {
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      setTimeout(() => {
         reject(new Error(`Processing timeout after ${timeoutMs}ms`));
       }, timeoutMs);
-
-      try {
-        const result = await processEventGraph(eventId);
-        clearTimeout(timeoutId);
-        resolve(result);
-      } catch (error) {
-        clearTimeout(timeoutId);
-        reject(error);
-      }
     });
+
+    return Promise.race([
+      processEventGraph(eventId),
+      timeoutPromise,
+    ]);
   }
 
   /**

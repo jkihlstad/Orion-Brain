@@ -155,9 +155,10 @@ function applyTransform(
     case 'toString':
       return String(value);
 
-    case 'toNumber':
+    case 'toNumber': {
       const num = Number(value);
       return isNaN(num) ? null : num;
+    }
 
     case 'toBoolean':
       if (typeof value === 'boolean') return value;

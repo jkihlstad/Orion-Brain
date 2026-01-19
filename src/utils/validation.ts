@@ -247,6 +247,7 @@ export function isValidTimestamp(timestamp: number): boolean {
 export function sanitizeString(value: string): string {
   return value
     .trim()
+    // eslint-disable-next-line no-control-regex
     .replace(/[\x00-\x1F\x7F]/g, '') // Remove control characters
     .substring(0, 10000); // Limit length
 }

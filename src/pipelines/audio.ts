@@ -447,7 +447,7 @@ export async function processAudioBatch(
   aggregatedClusters: SpeakerClusterUpdate[];
 }> {
   const results: (AudioProcessingResult & { promptRequired?: PromptRequest })[] = [];
-  let currentClusters = [...existingClusters];
+  const currentClusters = [...existingClusters];
   const allClusterUpdates: SpeakerClusterUpdate[] = [];
 
   for (const source of sources) {
