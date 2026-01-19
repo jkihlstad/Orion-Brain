@@ -9,9 +9,9 @@
  */
 
 import { LanceDBAdapter } from './lancedb';
-import { Neo4jAdapter, ContactNode, SpeakerClusterNode } from './neo4j';
+import { Neo4jAdapter } from './neo4j';
 import { BatchOperationResult } from '../types/common';
-import { ResolvesToRelProps } from '../schemas/neo4j-graph';
+import { ResolvesToRelProps, ContactNode, SpeakerClusterNode } from '../schemas/neo4j-graph';
 
 // =============================================================================
 // TYPES
@@ -510,13 +510,22 @@ export class BackfillService {
         );
 
         if (!resolutionResult.success) {
-          return {
+          const errorResult: {
+            success: boolean;
+            mergedCluster: SpeakerClusterNode | null;
+            contact: ContactNode | null;
+            lancedbResult: BatchOperationResult;
+            error?: string;
+          } = {
             success: false,
             mergedCluster: null,
             contact: null,
             lancedbResult: totalUpdates,
-            error: resolutionResult.error,
           };
+          if (resolutionResult.error !== undefined) {
+            errorResult.error = resolutionResult.error;
+          }
+          return errorResult;
         }
 
         resolvedContact = resolutionResult.contact;
@@ -606,7 +615,7 @@ export class BackfillService {
 
       // Process each cluster
       for (let i = 0; i < clustersToProcess.length; i++) {
-        const item = clustersToProcess[i];
+        const item = clustersToProcess[i]!;
 
         onProgress?.({
           step: `Processing cluster ${item.cluster.clusterId}`,

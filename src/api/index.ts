@@ -121,3 +121,22 @@ export type {
   CreateNodeRequest,
   CreateNodeResponse,
 } from './graph';
+
+// Profile
+export {
+  createProfileRouter,
+  handleGetProfile,
+  handleRecomputeProfile,
+  handleSubmitQuestionnaire,
+  handleGetProfileGraph,
+  questionnaireSubmissionSchema,
+  recomputeRequestSchema,
+  graphDataToProfileSnapshot,
+  convertStoredAnswers,
+} from './profile';
+
+export type {
+  ProfileResponse,
+  RecomputeResponse,
+  SubmitResponse,
+} from './profile';

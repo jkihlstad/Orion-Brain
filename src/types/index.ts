@@ -316,3 +316,50 @@ export const DEFAULT_PIPELINE_CONFIG: PipelineConfig = {
     maxTokens: 8192,
   },
 };
+
+// ============================================================================
+// Profile Types
+// ============================================================================
+
+export type {
+  // Core Profile Types
+  ProfileSnapshot,
+  PersonaSummary,
+  NotificationRules,
+  GlobalNotificationSettings,
+  QuietHours,
+  AppNotificationRules,
+  LLMPolicy,
+  LLMStyleConfig,
+  VectorMemoryRefs,
+  LanceDBProfileRef,
+
+  // Questionnaire Types
+  QuestionnaireAnswers,
+  QuestionAnswer,
+
+  // Profile Event Types
+  ProfileEventType,
+  ProfileSubmissionEvent,
+
+  // Synthesis Types
+  ProfileSynthesisResult,
+
+  // Graph Types
+  ProfileValue,
+  ProfilePreference,
+  ProfileNotificationRule,
+  ProfileAppPreference,
+
+  // Module Types
+  ModuleId,
+} from './profile';
+
+export {
+  // Profile Constants
+  PROFILE_SCHEMA_VERSION,
+  DEFAULT_PERSONA_SUMMARY,
+  DEFAULT_NOTIFICATION_RULES,
+  DEFAULT_LLM_POLICY,
+  MODULE_IDS,
+} from './profile';

@@ -20,7 +20,7 @@ import {
   OpenRouterAdapter,
   getDefaultAdapter,
 } from '../adapters/openrouter';
-import { generateId, chunk } from '../utils/math';
+import { chunk } from '../utils/math';
 
 // ============================================================================
 // Types
@@ -257,12 +257,12 @@ async function extractEntities(
   const startTime = Date.now();
 
   // Use OpenRouter adapter for entity extraction
-  const entities = await adapter.extractEntities(text, {
+  const entities = await adapter.extractEntities(text, config.entityExtractionModel ? {
     model: config.entityExtractionModel,
-  });
+  } : {});
 
   // Convert to our entity format with offsets
-  const extractedEntities: ExtractedEntity[] = entities.map((entity, index) => {
+  const extractedEntities: ExtractedEntity[] = entities.map((entity, _index) => {
     // Find entity position in text
     const startOffset = text.indexOf(entity.value);
     const endOffset = startOffset >= 0 ? startOffset + entity.value.length : -1;
@@ -419,9 +419,9 @@ export function compareTexts(
   let norm2 = 0;
 
   for (let i = 0; i < embedding1.values.length; i++) {
-    dotProduct += embedding1.values[i] * embedding2.values[i];
-    norm1 += embedding1.values[i] * embedding1.values[i];
-    norm2 += embedding2.values[i] * embedding2.values[i];
+    dotProduct += embedding1.values[i]! * embedding2.values[i]!;
+    norm1 += embedding1.values[i]! * embedding1.values[i]!;
+    norm2 += embedding2.values[i]! * embedding2.values[i]!;
   }
 
   return dotProduct / (Math.sqrt(norm1) * Math.sqrt(norm2));
@@ -503,8 +503,8 @@ export function chunkText(
   }
 
   // Handle any remaining text
-  if (chunks.length > 0 && chunks[chunks.length - 1].endOffset < text.length) {
-    const lastChunk = chunks[chunks.length - 1];
+  if (chunks.length > 0 && chunks[chunks.length - 1]!.endOffset < text.length) {
+    const lastChunk = chunks[chunks.length - 1]!;
     lastChunk.text = text.slice(lastChunk.startOffset).trim();
     lastChunk.endOffset = text.length;
   }
@@ -540,17 +540,17 @@ export async function processLongDocument(
   // Combine chunks with embeddings
   const chunks = textChunks.map((chunk, i) => ({
     ...chunk,
-    embedding: embeddings[i],
+    embedding: embeddings[i]!,
   }));
 
   // Calculate aggregate embedding (mean of all chunk embeddings)
   const allValues = embeddings.map(e => e.values);
-  const dimensions = embeddings[0].dimensions;
+  const dimensions = embeddings[0]!.dimensions;
   const aggregateValues = new Array(dimensions).fill(0);
 
   for (const values of allValues) {
     for (let i = 0; i < dimensions; i++) {
-      aggregateValues[i] += values[i];
+      aggregateValues[i] += values[i]!;
     }
   }
 
@@ -574,7 +574,7 @@ export async function processLongDocument(
     aggregateEmbedding: {
       values: aggregateValues,
       dimensions,
-      model: embeddings[0].model,
+      model: embeddings[0]!.model,
       normalizedAt: Date.now(),
     },
     entities,

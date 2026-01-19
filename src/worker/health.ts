@@ -215,7 +215,7 @@ export class HealthMonitor {
   // Timestamps
   private lastSuccessTime: number = 0;
   private lastPollTime: number = 0;
-  private lastHealthCheck: number = 0;
+  private lastHealthCheckTime: number = 0;
 
   // Component health
   private componentHealth: Map<string, ComponentHealth> = new Map();
@@ -411,8 +411,8 @@ export class HealthMonitor {
     const count = sorted.length;
 
     return {
-      min: sorted[0],
-      max: sorted[count - 1],
+      min: sorted[0]!,
+      max: sorted[count - 1]!,
       avg: this.latencyHistogram.sum / this.latencyHistogram.count,
       p50: this.getPercentile(sorted, 50),
       p95: this.getPercentile(sorted, 95),
@@ -426,7 +426,7 @@ export class HealthMonitor {
    */
   private getPercentile(sorted: number[], percentile: number): number {
     const index = Math.ceil((percentile / 100) * sorted.length) - 1;
-    return sorted[Math.max(0, index)];
+    return sorted[Math.max(0, index)]!;
   }
 
   // ===========================================================================
@@ -437,12 +437,15 @@ export class HealthMonitor {
    * Update component health status.
    */
   updateComponentHealth(name: string, status: HealthStatus, error?: string): void {
-    this.componentHealth.set(name, {
+    const health: ComponentHealth = {
       name,
       status,
       lastCheck: Date.now(),
-      error,
-    });
+    };
+    if (error !== undefined) {
+      health.error = error;
+    }
+    this.componentHealth.set(name, health);
   }
 
   // ===========================================================================
@@ -454,7 +457,7 @@ export class HealthMonitor {
    */
   getHealthCheck(): HealthCheckResult {
     const now = Date.now();
-    this.lastHealthCheck = now;
+    this.lastHealthCheckTime = now;
 
     // Update time-based gauges
     this.gauges.timeSinceLastSuccessMs = this.lastSuccessTime > 0
@@ -625,6 +628,7 @@ export class HealthMonitor {
       latency: this.calculateLatencyStats(),
       components: Array.from(this.componentHealth.values()),
       errorRate: this.calculateErrorRate(),
+      lastHealthCheckTime: this.lastHealthCheckTime,
     };
   }
 

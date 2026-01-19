@@ -47,7 +47,7 @@ export const DateRangeSchema = z.object({
   start: z.number().int().positive(),
   end: z.number().int().positive(),
 }).refine(
-  (data) => data.end > data.start,
+  (data: { start: number; end: number }) => data.end > data.start,
   { message: 'end must be greater than start' }
 );
 
@@ -151,10 +151,10 @@ export function validate<T>(
   const result = schema.safeParse(data);
 
   if (!result.success) {
-    const firstError = result.error.errors[0];
+    const firstError = result.error.issues[0]!;
     const field = fieldName || firstError.path.join('.');
     throw new ValidationError(firstError.message, field, {
-      errors: result.error.errors,
+      errors: result.error.issues,
     });
   }
 
@@ -173,7 +173,7 @@ export function validate<T>(
  * ```
  */
 export function validateBody<T>(schema: z.ZodSchema<T>) {
-  return (req: { body: unknown }, res: unknown, next: (error?: unknown) => void) => {
+  return (req: { body: unknown }, _res: unknown, next: (error?: unknown) => void) => {
     try {
       req.body = validate(schema, req.body);
       next();
@@ -187,7 +187,7 @@ export function validateBody<T>(schema: z.ZodSchema<T>) {
  * Create a validation middleware for query params
  */
 export function validateQuery<T>(schema: z.ZodSchema<T>) {
-  return (req: { query: unknown }, res: unknown, next: (error?: unknown) => void) => {
+  return (req: { query: unknown }, _res: unknown, next: (error?: unknown) => void) => {
     try {
       req.query = validate(schema, req.query);
       next();
@@ -201,7 +201,7 @@ export function validateQuery<T>(schema: z.ZodSchema<T>) {
  * Create a validation middleware for route params
  */
 export function validateParams<T>(schema: z.ZodSchema<T>) {
-  return (req: { params: unknown }, res: unknown, next: (error?: unknown) => void) => {
+  return (req: { params: unknown }, _res: unknown, next: (error?: unknown) => void) => {
     try {
       req.params = validate(schema, req.params);
       next();

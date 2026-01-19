@@ -13,7 +13,6 @@ import {
   VideoSegment,
   VideoProcessingResult,
   VideoPipelineConfig,
-  EmbeddingVector,
   MediaSource,
   DEFAULT_PIPELINE_CONFIG,
 } from '../types';
@@ -47,11 +46,6 @@ interface SceneChangeResult {
   frameNumber: number;
   changeScore: number;
   isSceneChange: boolean;
-}
-
-interface VideoPipelineContext {
-  config: VideoPipelineConfig;
-  adapter: OpenRouterAdapter;
 }
 
 // ============================================================================
@@ -136,7 +130,7 @@ interface VideoMetadata {
 /**
  * Extract video metadata
  */
-async function extractVideoMetadata(videoUrl: string): Promise<VideoMetadata> {
+async function extractVideoMetadata(_videoUrl: string): Promise<VideoMetadata> {
   // TODO: Implement actual video metadata extraction
   // This would typically use ffprobe or a similar tool
   // Options:
@@ -165,7 +159,7 @@ async function extractVideoMetadata(videoUrl: string): Promise<VideoMetadata> {
  */
 function calculateFrameExtractionPoints(
   duration: number,
-  fps: number,
+  _fps: number,
   config: VideoPipelineConfig
 ): number[] {
   const timestamps: number[] = [];
@@ -198,9 +192,9 @@ function calculateFrameExtractionPoints(
  * Extract frames from video at specified timestamps
  */
 async function extractFrames(
-  videoUrl: string,
+  _videoUrl: string,
   timestamps: number[],
-  config: VideoPipelineConfig
+  _config: VideoPipelineConfig
 ): Promise<ExtractedFrame[]> {
   // TODO: Implement actual frame extraction
   // Options:
@@ -217,7 +211,7 @@ async function extractFrames(
   for (let i = 0; i < timestamps.length; i++) {
     frames.push({
       frameNumber: i,
-      timestamp: timestamps[i],
+      timestamp: timestamps[i]!,
       imageData: `frame_placeholder_${i}`, // Would be base64 or temp file URL
       isKeyframe: i === 0 || i % 10 === 0, // Simulated keyframe detection
       metadata: {
@@ -240,7 +234,7 @@ async function extractFrames(
 async function generateFrameEmbeddings(
   frames: ExtractedFrame[],
   adapter: OpenRouterAdapter,
-  config: VideoPipelineConfig
+  _config: VideoPipelineConfig
 ): Promise<VideoFrame[]> {
   const results: VideoFrame[] = [];
 
@@ -275,13 +269,13 @@ async function generateFrameEmbeddings(
     for (let j = 0; j < batch.length; j++) {
       results.push({
         id: generateId('frm'),
-        frameNumber: batch[j].frameNumber,
-        timestamp: batch[j].timestamp,
-        isKeyframe: batch[j].isKeyframe,
-        embedding: embeddings[j],
+        frameNumber: batch[j]!.frameNumber,
+        timestamp: batch[j]!.timestamp,
+        isKeyframe: batch[j]!.isKeyframe,
+        embedding: embeddings[j]!,
         metadata: {
-          width: batch[j].metadata.width,
-          height: batch[j].metadata.height,
+          width: batch[j]!.metadata.width,
+          height: batch[j]!.metadata.height,
         },
       });
     }
@@ -306,8 +300,8 @@ function detectSceneChanges(
   // First frame is always a scene start
   if (frames.length > 0) {
     results.push({
-      timestamp: frames[0].timestamp,
-      frameNumber: frames[0].frameNumber,
+      timestamp: frames[0]!.timestamp,
+      frameNumber: frames[0]!.frameNumber,
       changeScore: 1.0,
       isSceneChange: true,
     });
@@ -315,8 +309,8 @@ function detectSceneChanges(
 
   // Compare consecutive frames
   for (let i = 1; i < frames.length; i++) {
-    const prevEmbedding = frames[i - 1].embedding.values;
-    const currEmbedding = frames[i].embedding.values;
+    const prevEmbedding = frames[i - 1]!.embedding.values;
+    const currEmbedding = frames[i]!.embedding.values;
 
     // Calculate similarity between consecutive frames
     const similarity = cosineSimilarity(prevEmbedding, currEmbedding);
@@ -326,8 +320,8 @@ function detectSceneChanges(
     const isSceneChange = changeScore > threshold;
 
     results.push({
-      timestamp: frames[i].timestamp,
-      frameNumber: frames[i].frameNumber,
+      timestamp: frames[i]!.timestamp,
+      frameNumber: frames[i]!.frameNumber,
       changeScore,
       isSceneChange,
     });
@@ -350,7 +344,7 @@ function createVideoSegments(
   // Find scene change points
   const sceneStarts: number[] = [0];
   for (let i = 1; i < sceneChanges.length; i++) {
-    if (sceneChanges[i].isSceneChange) {
+    if (sceneChanges[i]!.isSceneChange) {
       sceneStarts.push(i);
     }
   }
@@ -358,8 +352,8 @@ function createVideoSegments(
 
   // Create segments between scene changes
   for (let i = 0; i < sceneStarts.length - 1; i++) {
-    const startIdx = sceneStarts[i];
-    const endIdx = sceneStarts[i + 1];
+    const startIdx = sceneStarts[i]!;
+    const endIdx = sceneStarts[i + 1]!;
     const segmentFrames = frames.slice(startIdx, endIdx);
 
     if (segmentFrames.length === 0) continue;
@@ -370,13 +364,13 @@ function createVideoSegments(
 
     segments.push({
       id: generateId('vseg'),
-      startTime: segmentFrames[0].timestamp,
-      endTime: segmentFrames[segmentFrames.length - 1].timestamp,
+      startTime: segmentFrames[0]!.timestamp,
+      endTime: segmentFrames[segmentFrames.length - 1]!.timestamp,
       frames: segmentFrames,
       dominantEmbedding: {
         values: meanEmbedding,
         dimensions: meanEmbedding.length,
-        model: segmentFrames[0].embedding.model,
+        model: segmentFrames[0]!.embedding.model,
         normalizedAt: Date.now(),
       },
     });
@@ -408,12 +402,12 @@ export async function extractKeyframes(
   const result = await processVideo(source, resolvedConfig, adapter);
 
   // Filter to only include actual keyframes or scene change frames
-  const keyframes = result.frames.filter((frame, index) => {
+  const keyframes = result.frames.filter((frame, _index) => {
     if (frame.isKeyframe) return true;
 
     // Check if this frame was detected as a scene change
     const frameResult = result.segments.find(
-      seg => seg.frames[0].frameNumber === frame.frameNumber
+      seg => seg.frames[0]!.frameNumber === frame.frameNumber
     );
     return !!frameResult;
   });

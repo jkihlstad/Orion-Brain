@@ -35,17 +35,19 @@ export type {
 // NEO4J ADAPTER
 // =============================================================================
 
-export { Neo4jAdapter, createNeo4jAdapter, NODE_LABELS, RELATIONSHIP_TYPES } from './neo4j';
+export { Neo4jAdapter, createNeo4jAdapter } from './neo4j';
+export type { Neo4jConfig, TransactionContext } from './neo4j';
+
+// Re-export Neo4j types from schemas
+export { NODE_LABELS, RELATIONSHIP_TYPES } from '../schemas/neo4j-graph';
 export type {
-  Neo4jConfig,
-  TransactionContext,
   UserNode,
   EventNode,
   SpeakerClusterNode,
   ContactNode,
   SessionNode,
   UrlNode,
-} from './neo4j';
+} from '../schemas/neo4j-graph';
 
 // =============================================================================
 // BACKFILL SERVICE

@@ -12,7 +12,13 @@ import { StateGraph, END, START, Annotation } from '@langchain/langgraph';
 import { ChatOpenAI } from '@langchain/openai';
 import { HumanMessage, SystemMessage } from '@langchain/core/messages';
 
-import type { EventType, SentimentAnalysis } from '../types/common';
+import type { EventType } from '../types/common';
+
+// Local SentimentAnalysis type (not exported from common)
+interface SentimentAnalysis {
+  label: 'positive' | 'negative' | 'neutral';
+  score: number;
+}
 
 // =============================================================================
 // TYPES
@@ -154,25 +160,20 @@ interface SentimentSummary {
 // LANGGRAPH STATE
 // =============================================================================
 
-interface InsightsState {
-  // Input
-  userId: string;
-  timeRange: { start: number; end: number };
-  focusAreas: InsightFocusArea[];
-
-  // Aggregated data
-  aggregatedData: AggregatedData | null;
-
-  // Generated insights
-  summary: InsightSummary | null;
-  patterns: Pattern[];
-  recommendations: Recommendation[];
-  metrics: InsightMetrics | null;
-
-  // Processing
-  error: Error | null;
-  processingStage: string;
-}
+// InsightsState is defined by InsightsStateAnnotation below
+// Keeping the interface commented for documentation
+// interface InsightsState {
+//   userId: string;
+//   timeRange: { start: number; end: number };
+//   focusAreas: InsightFocusArea[];
+//   aggregatedData: AggregatedData | null;
+//   summary: InsightSummary | null;
+//   patterns: Pattern[];
+//   recommendations: Recommendation[];
+//   metrics: InsightMetrics | null;
+//   error: Error | null;
+//   processingStage: string;
+// }
 
 const InsightsStateAnnotation = Annotation.Root({
   userId: Annotation<string>(),
@@ -181,11 +182,11 @@ const InsightsStateAnnotation = Annotation.Root({
   aggregatedData: Annotation<AggregatedData | null>(),
   summary: Annotation<InsightSummary | null>(),
   patterns: Annotation<Pattern[]>({
-    reducer: (current, update) => [...current, ...update],
+    reducer: (current: Pattern[], update: Pattern[]) => [...current, ...update],
     default: () => [],
   }),
   recommendations: Annotation<Recommendation[]>({
-    reducer: (current, update) => [...current, ...update],
+    reducer: (current: Recommendation[], update: Recommendation[]) => [...current, ...update],
     default: () => [],
   }),
   metrics: Annotation<InsightMetrics | null>(),
@@ -281,7 +282,8 @@ async function fetchAggregatedData(
 async function calculateMetrics(
   state: typeof InsightsStateAnnotation.State
 ): Promise<Partial<typeof InsightsStateAnnotation.State>> {
-  const { aggregatedData, timeRange } = state;
+  const { aggregatedData, timeRange: _timeRange } = state;
+  void _timeRange; // Reserved for future time-range-based metric calculations
 
   if (!aggregatedData) {
     return { processingStage: 'metrics_skipped' };
@@ -290,17 +292,17 @@ async function calculateMetrics(
   try {
     // Calculate metrics from aggregated data
     const totalMeetingMinutes = aggregatedData.meetings.reduce(
-      (sum, m) => sum + m.duration,
+      (sum: number, m: MeetingSummary) => sum + m.duration,
       0
     );
 
     const topTopics = aggregatedData.topics
-      .sort((a, b) => b.count - a.count)
+      .sort((a: TopicSummary, b: TopicSummary) => b.count - a.count)
       .slice(0, 10)
-      .map((t) => ({ topic: t.name, count: t.count }));
+      .map((t: TopicSummary) => ({ topic: t.name, count: t.count }));
 
     const completedActions = aggregatedData.actionItems.filter(
-      (a) => a.status === 'completed'
+      (a: ActionItemSummary) => a.status === 'completed'
     ).length;
     const totalActions = aggregatedData.actionItems.length;
     const actionItemCompletionRate =
@@ -339,23 +341,21 @@ function calculateProductivityScore(data: AggregatedData): number {
 
   // Bonus for completed action items
   const completedRatio =
-    data.actionItems.filter((a) => a.status === 'completed').length /
+    data.actionItems.filter((a: ActionItemSummary) => a.status === 'completed').length /
     Math.max(data.actionItems.length, 1);
   score += completedRatio * 20;
 
   // Bonus for positive sentiment
+  const positive = data.sentiments.distribution.positive ?? 0;
+  const negative = data.sentiments.distribution.negative ?? 0;
+  const neutral = data.sentiments.distribution.neutral ?? 0;
   const positiveRatio =
-    data.sentiments.distribution.positive /
-    Math.max(
-      data.sentiments.distribution.positive +
-        data.sentiments.distribution.negative +
-        data.sentiments.distribution.neutral,
-      1
-    );
+    positive /
+    Math.max(positive + negative + neutral, 1);
   score += positiveRatio * 15;
 
   // Penalty for too many meetings
-  const meetingHours = data.meetings.reduce((sum, m) => sum + m.duration, 0) / 60;
+  const meetingHours = data.meetings.reduce((sum: number, m: MeetingSummary) => sum + m.duration, 0) / 60;
   if (meetingHours > 20) {
     score -= Math.min((meetingHours - 20) * 2, 20);
   }
@@ -481,13 +481,16 @@ function detectSentimentPatterns(data: AggregatedData): Pattern[] {
   const patterns: Pattern[] = [];
 
   const { distribution, trend } = data.sentiments;
-  const total = distribution.positive + distribution.negative + distribution.neutral || 1;
+  const positive = distribution.positive ?? 0;
+  const negative = distribution.negative ?? 0;
+  const neutral = distribution.neutral ?? 0;
+  const total = positive + negative + neutral || 1;
 
-  if (distribution.negative / total > 0.3) {
+  if (negative / total > 0.3) {
     patterns.push({
       type: 'negative_sentiment_spike',
       description: 'Higher than usual negative sentiment detected',
-      frequency: distribution.negative,
+      frequency: negative,
       examples: [],
       trend: trend === 'declining' ? 'increasing' : 'stable',
     });
@@ -503,7 +506,9 @@ function detectSentimentPatterns(data: AggregatedData): Pattern[] {
 async function generateRecommendations(
   state: typeof InsightsStateAnnotation.State
 ): Promise<Partial<typeof InsightsStateAnnotation.State>> {
-  const { aggregatedData, patterns, metrics, focusAreas } = state;
+  const { aggregatedData, patterns: _patterns, metrics, focusAreas: _focusAreas } = state;
+  void _patterns; // Available for future pattern-based recommendations
+  void _focusAreas; // Available for future focus-area-based filtering
 
   if (!aggregatedData || !metrics) {
     return { processingStage: 'recommendations_skipped' };
@@ -514,7 +519,7 @@ async function generateRecommendations(
 
     // Action item follow-ups
     const overdueActions = aggregatedData.actionItems.filter(
-      (a) =>
+      (a: ActionItemSummary) =>
         a.status === 'open' && a.dueDate && a.dueDate < Date.now()
     );
     for (const action of overdueActions.slice(0, 3)) {
@@ -530,7 +535,7 @@ async function generateRecommendations(
 
     // Contact follow-ups
     const staleContacts = aggregatedData.contacts.filter(
-      (c) =>
+      (c: ContactSummary) =>
         c.interactionCount >= 3 &&
         Date.now() - c.lastInteraction > 14 * 24 * 60 * 60 * 1000 // 14 days
     );
@@ -614,8 +619,8 @@ Use bullet points for highlights.`;
 
     // Extract highlights from patterns and recommendations
     const highlights = [
-      ...patterns.slice(0, 2).map((p) => p.description),
-      ...recommendations.slice(0, 2).map((r) => r.title),
+      ...patterns.slice(0, 2).map((p: Pattern) => p.description),
+      ...recommendations.slice(0, 2).map((r: Recommendation) => r.title),
     ];
 
     // Format period string
@@ -639,7 +644,7 @@ Use bullet points for highlights.`;
 
     const fallbackSummary: InsightSummary = {
       text: `Over this period, you captured ${metrics.totalEvents} events, spent ${Math.round(metrics.totalMeetingMinutes / 60)} hours in meetings, and interacted with ${metrics.uniqueContacts} contacts.`,
-      highlights: patterns.slice(0, 3).map((p) => p.description),
+      highlights: patterns.slice(0, 3).map((p: Pattern) => p.description),
       period: `${new Date(timeRange.start).toLocaleDateString()} - ${new Date(timeRange.end).toLocaleDateString()}`,
     };
 
@@ -651,11 +656,12 @@ Use bullet points for highlights.`;
 }
 
 function buildSummaryContext(
-  data: AggregatedData,
+  _data: AggregatedData,
   patterns: Pattern[],
   metrics: InsightMetrics,
   timeRange: { start: number; end: number }
 ): string {
+  void _data; // Data is available for future detailed context building
   const parts: string[] = [];
 
   parts.push(`Time period: ${new Date(timeRange.start).toLocaleDateString()} to ${new Date(timeRange.end).toLocaleDateString()}`);
@@ -694,8 +700,9 @@ function buildSummaryContext(
 // =============================================================================
 
 async function finalizeInsights(
-  state: typeof InsightsStateAnnotation.State
+  _state: typeof InsightsStateAnnotation.State
 ): Promise<Partial<typeof InsightsStateAnnotation.State>> {
+  void _state; // State is available for final validation if needed
   return {
     processingStage: 'completed',
   };
@@ -832,14 +839,22 @@ export async function* streamInsights(
   for await (const chunk of await graph.stream(initialState)) {
     const [nodeName, state] = Object.entries(chunk)[0] as [string, typeof InsightsStateAnnotation.State];
 
+    const data: Partial<InsightsResponse> = {};
+    if (state.summary) {
+      data.summary = state.summary;
+    }
+    if (state.patterns.length > 0) {
+      data.patterns = state.patterns;
+    }
+    if (state.recommendations.length > 0) {
+      data.recommendations = state.recommendations;
+    }
+    if (state.metrics) {
+      data.metrics = state.metrics;
+    }
     yield {
       stage: nodeName,
-      data: {
-        summary: state.summary || undefined,
-        patterns: state.patterns.length > 0 ? state.patterns : undefined,
-        recommendations: state.recommendations.length > 0 ? state.recommendations : undefined,
-        metrics: state.metrics || undefined,
-      },
+      data,
     };
   }
 }

@@ -5,7 +5,7 @@
  * node upsert operations, relationship creation, and query execution.
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { Neo4jAdapter, Neo4jConfig } from '../neo4j';
 
 // =============================================================================
@@ -23,70 +23,81 @@ const mockConfig: Neo4jConfig = {
 };
 
 const createMockUserNode = () => ({
-  id: 'user_123',
+  userId: 'user_123',
   email: 'test@example.com',
+  displayName: 'Test User',
   createdAt: Date.now(),
   lastActiveAt: Date.now(),
-  isActive: true,
-  metadata: { plan: 'pro' },
+  preferencesJson: JSON.stringify({ plan: 'pro' }),
+  status: 'active' as const,
 });
 
 const createMockEventNode = () => ({
-  id: 'event_123',
+  eventId: 'event_123',
   userId: 'user_123',
   eventType: 'audio_segment' as const,
-  timestamp: Date.now(),
   sourceApp: 'ios_browser' as const,
   privacyScope: 'private' as const,
-  lanceDbId: 'lancedb_123',
+  timestamp: Date.now(),
+  lancedbTable: 'audio_segments',
+  lancedbRowId: 'lancedb_123',
   summary: 'Test audio event',
-  metadata: {},
 });
 
 const createMockSpeakerClusterNode = () => ({
-  id: 'cluster_123',
+  clusterId: 'cluster_123',
   userId: 'user_123',
-  createdAt: Date.now(),
-  updatedAt: Date.now(),
+  centroidVectorJson: JSON.stringify(new Array(256).fill(0.1)),
   segmentCount: 5,
   totalDuration: 30000,
+  firstSeen: Date.now() - 86400000,
+  lastSeen: Date.now(),
+  label: null,
+  qualityScore: 0.85,
   isUserVoice: false,
-  centroidVector: new Array(256).fill(0.1),
-  metadata: {},
 });
 
 const createMockContactNode = () => ({
-  id: 'contact_123',
+  contactId: 'contact_123',
   userId: 'user_123',
-  name: 'John Doe',
-  createdAt: Date.now(),
-  updatedAt: Date.now(),
+  displayName: 'John Doe',
+  email: 'john@example.com',
+  phone: null,
+  photoUrl: null,
+  relationship: 'colleague',
+  notes: null,
+  externalIdsJson: null,
+  firstInteraction: Date.now() - 86400000,
+  lastInteraction: Date.now(),
   interactionCount: 10,
-  source: 'manual' as const,
-  metadata: {},
+  isVerified: false,
 });
 
 const createMockSessionNode = () => ({
-  id: 'session_123',
+  sessionId: 'session_123',
   userId: 'user_123',
   startTime: Date.now() - 3600000,
   endTime: Date.now(),
   duration: 3600000,
-  eventCount: 25,
   deviceType: 'mobile' as const,
-  userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X)',
-  metadata: {},
+  eventCount: 25,
+  urlCount: 10,
+  primaryTopic: 'technology',
+  summary: 'Test browsing session',
+  lancedbRowId: null,
 });
 
 const createMockUrlNode = () => ({
-  id: 'url_123',
   normalizedUrl: 'https://example.com/page',
+  originalUrl: 'https://example.com/page?ref=test',
   domain: 'example.com',
   path: '/page',
   title: 'Example Page',
-  firstSeenAt: Date.now() - 86400000,
-  lastSeenAt: Date.now(),
-  metadata: {},
+  description: 'An example page for testing',
+  faviconUrl: 'https://example.com/favicon.ico',
+  category: 'technology',
+  firstVisit: Date.now() - 86400000,
+  lastVisit: Date.now(),
 });
 
 // =============================================================================
@@ -204,7 +215,7 @@ describe('Neo4jAdapter - Node Upsert Operations', () => {
       const result = await adapter.upsertUser(user);
 
       expect(result).toBeDefined();
-      expect(result.id).toBe(user.id);
+      expect(result.userId).toBe(user.userId);
     });
 
     it('should add schema version to node', async () => {
@@ -223,7 +234,7 @@ describe('Neo4jAdapter - Node Upsert Operations', () => {
         lastActiveAt: Date.now() + 1000,
       });
 
-      expect(result.id).toBe(user.id);
+      expect(result.userId).toBe(user.userId);
     });
   });
 
@@ -233,7 +244,7 @@ describe('Neo4jAdapter - Node Upsert Operations', () => {
       const result = await adapter.upsertEvent(event);
 
       expect(result).toBeDefined();
-      expect(result.id).toBe(event.id);
+      expect(result.eventId).toBe(event.eventId);
     });
 
     it('should preserve event type', async () => {
@@ -250,7 +261,7 @@ describe('Neo4jAdapter - Node Upsert Operations', () => {
       const result = await adapter.upsertSpeakerCluster(cluster);
 
       expect(result).toBeDefined();
-      expect(result.id).toBe(cluster.id);
+      expect(result.clusterId).toBe(cluster.clusterId);
     });
 
     it('should handle user voice flag', async () => {
@@ -270,8 +281,8 @@ describe('Neo4jAdapter - Node Upsert Operations', () => {
       const result = await adapter.upsertContact(contact);
 
       expect(result).toBeDefined();
-      expect(result.id).toBe(contact.id);
-      expect(result.name).toBe(contact.name);
+      expect(result.contactId).toBe(contact.contactId);
+      expect(result.displayName).toBe(contact.displayName);
     });
   });
 
@@ -281,7 +292,7 @@ describe('Neo4jAdapter - Node Upsert Operations', () => {
       const result = await adapter.upsertSession(session);
 
       expect(result).toBeDefined();
-      expect(result.id).toBe(session.id);
+      expect(result.sessionId).toBe(session.sessionId);
     });
 
     it('should preserve session timing', async () => {
@@ -376,7 +387,7 @@ describe('Neo4jAdapter - Relationship Creation', () => {
       await adapter.createClusterResolvesToContact('cluster_123', 'contact_123', {
         resolvedAt: Date.now(),
         confidence: 0.95,
-        resolutionMethod: 'user_labeled',
+        resolutionMethod: 'user_manual',
       });
     });
 
@@ -384,7 +395,7 @@ describe('Neo4jAdapter - Relationship Creation', () => {
       const props = {
         resolvedAt: Date.now(),
         confidence: 0.85,
-        resolutionMethod: 'auto_detected' as const,
+        resolutionMethod: 'auto_suggested' as const,
       };
       await adapter.createClusterResolvesToContact('cluster_123', 'contact_123', props);
     });
@@ -658,7 +669,8 @@ describe('Neo4jAdapter - Aggregation Methods', () => {
         Date.now()
       );
 
-      // lastDay should have >= lastHour (for actual data)
+      // Both should be defined and have valid stats
+      expect(lastHour.totalSessions).toBeGreaterThanOrEqual(0);
       expect(lastDay.totalSessions).toBeGreaterThanOrEqual(0);
     });
   });

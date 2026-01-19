@@ -15,10 +15,6 @@ import {
   SpeakerClusterUpdate,
   PipelineConfig,
   DEFAULT_PIPELINE_CONFIG,
-  AudioProcessingResult,
-  VideoProcessingResult,
-  ImageProcessingResult,
-  TextProcessingResult,
 } from '../types';
 import {
   OpenRouterAdapter,
@@ -39,7 +35,7 @@ import { processText } from './text';
  */
 export function createEmbeddingJob(
   event: MediaEvent,
-  config?: Partial<PipelineConfig>
+  _config?: Partial<PipelineConfig>
 ): EmbeddingJob {
   return {
     id: generateId('job'),
@@ -191,7 +187,7 @@ async function processAudioJob(
       createdAt: Date.now(),
     }));
 
-  return {
+  const jobResult: EmbeddingJob = {
     ...job,
     embeddings,
     metadata: {
@@ -202,8 +198,13 @@ async function processAudioJob(
       processingTimeMs: result.processingTimeMs,
     },
     speakerUpdates: result.speakerClusters,
-    promptRequired: result.unknownSpeakerDetected ? result.promptRequired : undefined,
   };
+
+  if (result.unknownSpeakerDetected && result.promptRequired !== undefined) {
+    jobResult.promptRequired = result.promptRequired;
+  }
+
+  return jobResult;
 }
 
 async function processVideoJob(
@@ -517,7 +518,16 @@ export function summarizeJob(job: EmbeddingJob): {
   hasPrompt: boolean;
   error?: string;
 } {
-  return {
+  const summary: {
+    id: string;
+    eventId: string;
+    eventType: EventType;
+    status: string;
+    embeddingCount: number;
+    durationMs: number | null;
+    hasPrompt: boolean;
+    error?: string;
+  } = {
     id: job.id,
     eventId: job.eventId,
     eventType: job.eventType,
@@ -525,6 +535,11 @@ export function summarizeJob(job: EmbeddingJob): {
     embeddingCount: job.embeddings.length,
     durationMs: getJobDuration(job),
     hasPrompt: !!job.promptRequired,
-    error: job.error,
   };
+
+  if (job.error !== undefined) {
+    summary.error = job.error;
+  }
+
+  return summary;
 }

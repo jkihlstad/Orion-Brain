@@ -298,8 +298,11 @@ export function serverAuth(options: ServerAuthMiddlewareOptions = {}) {
         service,
         isInternal: true,
         timestamp,
-        requestId: req.headers['x-request-id'] as string | undefined,
       };
+      const requestIdHeader = req.headers['x-request-id'];
+      if (typeof requestIdHeader === 'string') {
+        serverAuthContext.requestId = requestIdHeader;
+      }
 
       // Attach to request
       req.serverAuth = serverAuthContext;
@@ -389,6 +392,7 @@ export function apiKeyAuth(options: {
     };
 
     next();
+    return;
   };
 }
 
@@ -488,7 +492,8 @@ export function eitherAuth(options: {
       // Dynamically import to avoid circular dependencies
       const { clerkAuth } = await import('./clerkAuth');
       const clerkMiddleware = clerkAuth(options.clerkOptions);
-      return clerkMiddleware(req, res, next);
+      // Cast req to compatible type for clerkMiddleware
+      return clerkMiddleware(req as Parameters<typeof clerkMiddleware>[0], res, next);
     }
 
     // No auth provided

@@ -16,7 +16,7 @@ export function dotProduct(a: number[], b: number[]): number {
   }
   let sum = 0;
   for (let i = 0; i < a.length; i++) {
-    sum += a[i] * b[i];
+    sum += a[i]! * b[i]!;
   }
   return sum;
 }
@@ -73,7 +73,7 @@ export function euclideanDistance(a: number[], b: number[]): number {
 
   let sum = 0;
   for (let i = 0; i < a.length; i++) {
-    const diff = a[i] - b[i];
+    const diff = a[i]! - b[i]!;
     sum += diff * diff;
   }
   return Math.sqrt(sum);
@@ -86,7 +86,7 @@ export function vectorAdd(a: number[], b: number[]): number[] {
   if (a.length !== b.length) {
     throw new Error(`Vector dimension mismatch: ${a.length} vs ${b.length}`);
   }
-  return a.map((v, i) => v + b[i]);
+  return a.map((v, i) => v + b[i]!);
 }
 
 /**
@@ -96,7 +96,7 @@ export function vectorSubtract(a: number[], b: number[]): number[] {
   if (a.length !== b.length) {
     throw new Error(`Vector dimension mismatch: ${a.length} vs ${b.length}`);
   }
-  return a.map((v, i) => v - b[i]);
+  return a.map((v, i) => v - b[i]!);
 }
 
 /**
@@ -114,7 +114,8 @@ export function vectorMean(vectors: number[][]): number[] {
     throw new Error('Cannot calculate mean of empty vector array');
   }
 
-  const dimensions = vectors[0].length;
+  const firstVector = vectors[0]!;
+  const dimensions = firstVector.length;
   const sum = new Array(dimensions).fill(0);
 
   for (const vector of vectors) {
@@ -173,8 +174,10 @@ export class IncrementalClusterer<T> {
   constructor(
     private readonly similarityThreshold: number = 0.85,
     private readonly getEmbedding: (item: T) => number[],
-    private readonly minClusterSize: number = 1
-  ) {}
+    private readonly _minClusterSize: number = 1
+  ) {
+    void this._minClusterSize; // Reserved for future filtering logic
+  }
 
   /**
    * Add a new item to the clustering

@@ -14,8 +14,6 @@
 import type { ConnectionStatus, PaginatedResponse } from '../types/common';
 
 import {
-  NODE_LABELS,
-  RELATIONSHIP_TYPES,
   NEO4J_SCHEMA_VERSION,
   UserNode,
   EventNode,
@@ -209,7 +207,11 @@ export class Neo4jAdapter {
     if (!this.driver) {
       throw new Error('[Neo4j] Not connected');
     }
-    return this.driver.session({ database: this.config.database });
+    const sessionConfig: { database?: string } = {};
+    if (this.config.database !== undefined) {
+      sessionConfig.database = this.config.database;
+    }
+    return this.driver.session(sessionConfig);
   }
 
   /**
@@ -236,7 +238,7 @@ export class Neo4jAdapter {
     params: Record<string, unknown> = {}
   ): Promise<T | null> {
     const results = await this.runQuery<T>(query, params);
-    return results.length > 0 ? results[0] : null;
+    return results.length > 0 ? (results[0] ?? null) : null;
   }
 
   // ===========================================================================

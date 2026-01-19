@@ -19,25 +19,36 @@ import { v4 as uuidv4 } from 'uuid';
 
 // Middleware
 import { clerkAuth, getUserId, AuthContext } from '../middleware/clerkAuth';
-import { serverAuth, apiKeyAuth, ServerAuthContext } from '../middleware/serverAuth';
+import { serverAuth, ServerAuthContext } from '../middleware/serverAuth';
 
 // API handlers
 import {
   semanticSearch,
   multimodalSearch,
-  SearchResult,
-  MultimodalSearchResult,
 } from './search';
+import type { SearchResult, MultimodalSearchResult } from './search';
 import {
   generateInsights,
   InsightsRequest,
-  InsightsResponse,
 } from './insights';
+import type { InsightsResponse } from './insights';
+
+// Re-export types for documentation (silence unused import warnings)
+export type { SearchResult, MultimodalSearchResult, InsightsResponse };
 
 // iOS Edge App API routes
 import { createiOSIngestRouter } from './ios-ingest';
 import { createEmbeddingsRouter } from './embeddings';
 import { createGraphRouter } from './graph';
+
+// Profile API routes
+import { createProfileRouter } from './profile';
+
+// Admin routes for provability testing
+import { createAdminRouter } from './routes/admin';
+
+// Ops routes for service health checks
+import opsRouter from './ops';
 
 // LangGraph workflow
 import { processEvent, processEvents, deadLetterQueue } from '../langgraph/graph';
@@ -51,11 +62,11 @@ import type { EventType, SearchFilters } from '../types/common';
 /**
  * Extended request with both auth types
  */
-interface AuthenticatedRequest extends Request {
+type AuthenticatedRequest = Request & {
   auth?: AuthContext;
   serverAuth?: ServerAuthContext;
-  requestId: string;
-}
+  requestId?: string;
+};
 
 /**
  * API Error response
@@ -145,7 +156,8 @@ const serverStartTime = Date.now();
  * Request ID middleware - adds unique ID to each request
  */
 function requestIdMiddleware(req: AuthenticatedRequest, res: Response, next: NextFunction): void {
-  req.requestId = req.headers['x-request-id'] as string || uuidv4();
+  const existingId = req.headers['x-request-id'];
+  req.requestId = (typeof existingId === 'string' ? existingId : undefined) || uuidv4();
   res.setHeader('x-request-id', req.requestId);
   next();
 }
@@ -183,8 +195,9 @@ function errorHandler(
   err: Error,
   req: AuthenticatedRequest,
   res: Response,
-  next: NextFunction
+  _next: NextFunction
 ): void {
+  void _next; // Required by Express error handler signature
   console.error(`[Error] ${req.requestId}:`, err);
 
   const response: ApiErrorResponse = {
@@ -193,7 +206,7 @@ function errorHandler(
       message: process.env.NODE_ENV === 'production'
         ? 'An internal error occurred'
         : err.message,
-      requestId: req.requestId,
+      requestId: req.requestId ?? 'unknown',
     },
   };
 
@@ -208,7 +221,7 @@ function notFoundHandler(req: AuthenticatedRequest, res: Response): void {
     error: {
       code: 'NOT_FOUND',
       message: `Route ${req.method} ${req.path} not found`,
-      requestId: req.requestId,
+      requestId: req.requestId ?? 'unknown',
     },
   };
 
@@ -243,7 +256,7 @@ function rateLimiter(req: AuthenticatedRequest, res: Response, next: NextFunctio
       error: {
         code: 'RATE_LIMITED',
         message: 'Too many requests',
-        requestId: req.requestId,
+        requestId: req.requestId ?? 'unknown',
       },
     };
     res.status(429).json(response);
@@ -329,7 +342,12 @@ async function handleJobsEvents(req: AuthenticatedRequest, res: Response): Promi
 async function handleSearch(req: AuthenticatedRequest, res: Response): Promise<void> {
   try {
     const userId = getUserId(req);
-    const { query, filters, limit } = req.body as {
+    const body = req.body as {
+      query: string;
+      filters?: SearchFilters;
+      limit?: number;
+    };
+    const { query, filters, limit } = body as {
       query: string;
       filters?: SearchFilters;
       limit?: number;
@@ -379,12 +397,13 @@ async function handleSearch(req: AuthenticatedRequest, res: Response): Promise<v
 async function handleMultimodalSearch(req: AuthenticatedRequest, res: Response): Promise<void> {
   try {
     const userId = getUserId(req);
-    const { query, modalities, filters, limit } = req.body as {
+    const body = req.body as {
       query: string;
       modalities?: EventType[];
       filters?: SearchFilters;
       limit?: number;
     };
+    const { query, modalities, filters, limit } = body;
 
     if (!query || typeof query !== 'string') {
       res.status(400).json({
@@ -437,10 +456,11 @@ async function handleMultimodalSearch(req: AuthenticatedRequest, res: Response):
 async function handleInsights(req: AuthenticatedRequest, res: Response): Promise<void> {
   try {
     const userId = getUserId(req);
-    const { timeRange, focusAreas } = req.query as {
+    const queryParams = req.query as {
       timeRange?: string;
       focusAreas?: string;
     };
+    const { timeRange, focusAreas } = queryParams;
 
     // Parse time range (default to last 7 days)
     let start = Date.now() - 7 * 24 * 60 * 60 * 1000;
@@ -463,11 +483,14 @@ async function handleInsights(req: AuthenticatedRequest, res: Response): Promise
     }
 
     const startTime = Date.now();
-    const insights = await generateInsights({
+    const insightsRequest: InsightsRequest = {
       userId,
       timeRange: { start, end },
-      focusAreas: areas,
-    });
+    };
+    if (areas !== undefined) {
+      insightsRequest.focusAreas = areas;
+    }
+    const insights = await generateInsights(insightsRequest);
     const latencyMs = Date.now() - startTime;
 
     res.setHeader('X-Insights-Latency-Ms', latencyMs);
@@ -491,8 +514,10 @@ async function handleInsights(req: AuthenticatedRequest, res: Response): Promise
  */
 async function handleClusterLabel(req: AuthenticatedRequest, res: Response): Promise<void> {
   try {
-    const userId = getUserId(req);
-    const { clusterId, contactId } = req.body as ClusterLabelRequest;
+    const _userId = getUserId(req);
+    void _userId; // Will be used for cluster ownership verification
+    const body = req.body as ClusterLabelRequest;
+    const { clusterId, contactId } = body;
 
     if (!clusterId || !contactId) {
       res.status(400).json({
@@ -550,7 +575,8 @@ async function handleClusterLabel(req: AuthenticatedRequest, res: Response): Pro
  * GET /v1/brain/health
  * Health check endpoint
  */
-async function handleHealth(req: AuthenticatedRequest, res: Response): Promise<void> {
+async function handleHealth(_req: AuthenticatedRequest, res: Response): Promise<void> {
+  void _req; // Health check doesn't require request data
   const services: HealthResponse['services'] = [];
 
   // Check LanceDB
@@ -608,11 +634,14 @@ async function handleHealth(req: AuthenticatedRequest, res: Response): Promise<v
 
   // Check Dead Letter Queue
   const dlqSize = deadLetterQueue.size();
-  services.push({
+  const dlqService: HealthResponse['services'][number] = {
     name: 'dead_letter_queue',
     status: dlqSize > 100 ? 'degraded' : 'healthy',
-    error: dlqSize > 0 ? `${dlqSize} items in DLQ` : undefined,
-  });
+  };
+  if (dlqSize > 0) {
+    dlqService.error = `${dlqSize} items in DLQ`;
+  }
+  services.push(dlqService);
 
   // Determine overall status
   const hasUnhealthy = services.some((s) => s.status === 'unhealthy');
@@ -641,7 +670,8 @@ async function handleHealth(req: AuthenticatedRequest, res: Response): Promise<v
  * GET /v1/brain/dlq
  * Get dead letter queue contents (internal only)
  */
-async function handleDLQ(req: AuthenticatedRequest, res: Response): Promise<void> {
+async function handleDLQ(_req: AuthenticatedRequest, res: Response): Promise<void> {
+  void _req; // DLQ listing doesn't require request data
   const items = deadLetterQueue.getAll();
 
   res.json({
@@ -655,7 +685,19 @@ async function handleDLQ(req: AuthenticatedRequest, res: Response): Promise<void
  * Retry a specific event from DLQ (internal only)
  */
 async function handleDLQRetry(req: AuthenticatedRequest, res: Response): Promise<void> {
-  const { eventId } = req.params;
+  const eventIdParam = req.params.eventId;
+  const eventId = Array.isArray(eventIdParam) ? eventIdParam[0] : eventIdParam;
+
+  if (!eventId) {
+    res.status(400).json({
+      error: {
+        code: 'INVALID_REQUEST',
+        message: 'eventId is required',
+        requestId: req.requestId ?? 'unknown',
+      },
+    });
+    return;
+  }
 
   const success = await deadLetterQueue.retry(eventId);
 
@@ -664,7 +706,7 @@ async function handleDLQRetry(req: AuthenticatedRequest, res: Response): Promise
       error: {
         code: 'NOT_FOUND',
         message: `Event ${eventId} not found in DLQ`,
-        requestId: req.requestId,
+        requestId: req.requestId ?? 'unknown',
       },
     });
     return;
@@ -719,7 +761,7 @@ function createRouter(): Router {
   const dashboardRouter = Router();
   dashboardRouter.use(clerkAuth({
     skipPaths: [], // All paths require auth
-  }));
+  }) as express.RequestHandler);
   dashboardRouter.use(rateLimiter as express.RequestHandler);
 
   // Search
@@ -761,10 +803,31 @@ function createRouter(): Router {
   // GET /v1/brain/graph/neighbors/:nodeId - Get node neighbors
   router.use('/v1/brain/graph', createGraphRouter());
 
+  // Profile routes
+  // GET /v1/brain/profile/:userId - Get user profile
+  // GET /v1/brain/profile/:userId/graph - Get user profile graph
+  // POST /v1/brain/profile/submit - Submit questionnaire answers
+  // POST /v1/brain/profile/recompute/:userId - Trigger profile recomputation
+  router.use('/v1/brain/profile', createProfileRouter());
+
   // ==========================================================================
   // Public routes (no auth)
   // ==========================================================================
   router.get('/v1/brain/health', handleHealth as express.RequestHandler);
+
+  // ==========================================================================
+  // Admin routes (for provability testing - Window 13)
+  // ==========================================================================
+  // GET /admin/brain/status - prove event processing status and graph upsert for traceId
+  // GET /admin/graph/assert - run pre-approved assertion templates
+  router.use('/admin', createAdminRouter());
+
+  // ==========================================================================
+  // Ops routes (Window 112)
+  // ==========================================================================
+  // GET /ops/status?eventId=... - Get brain event processing status
+  // Protected by X-Ops-Key header
+  router.use('/ops', opsRouter);
 
   return router;
 }
@@ -785,7 +848,7 @@ export function createServer(): express.Application {
   app.use(cors({
     origin: config.corsOrigins,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-ID', 'X-Server-Signature', 'X-Server-Timestamp', 'X-Server-Service', 'X-Server-Nonce', 'X-API-Key'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-ID', 'X-Server-Signature', 'X-Server-Timestamp', 'X-Server-Service', 'X-Server-Nonce', 'X-API-Key', 'X-Ops-Key'],
     credentials: true,
   }));
 

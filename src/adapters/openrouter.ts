@@ -190,7 +190,7 @@ export class OpenRouterAdapter {
       input: text,
     });
 
-    const embedding = response.data[0].embedding;
+    const embedding = response.data[0]!.embedding;
 
     this.trackCost(model, 'embedding', response.usage.prompt_tokens, 0);
 
@@ -261,7 +261,7 @@ export class OpenRouterAdapter {
       },
     ], { model, maxTokens: 300 });
 
-    const description = descriptionResponse.choices[0].message.content;
+    const description = descriptionResponse.choices[0]!.message.content;
 
     // Then generate embedding from the description
     const embedding = await this.generateTextEmbedding(description, {
@@ -288,7 +288,7 @@ export class OpenRouterAdapter {
   // ============================================================================
 
   async transcribeAudio(
-    audioUrl: string,
+    _audioUrl: string,
     options?: OpenRouterRequestOptions & {
       language?: string;
       enableTimestamps?: boolean;
@@ -298,8 +298,7 @@ export class OpenRouterAdapter {
     // TODO: OpenRouter Whisper API integration
     // The actual implementation depends on OpenRouter's audio API availability
     // Below is a placeholder that would need to be adapted to the actual API
-
-    const model = options?.model || 'openai/whisper-large-v3';
+    // Model would be: options?.model || 'openai/whisper-large-v3'
 
     // For now, simulate the API call structure
     // In production, this would be:
@@ -380,7 +379,7 @@ export class OpenRouterAdapter {
     );
 
     try {
-      return JSON.parse(response.choices[0].message.content) as T;
+      return JSON.parse(response.choices[0]!.message.content) as T;
     } catch (error) {
       throw new Error(`Failed to parse JSON response: ${error}`);
     }
@@ -511,7 +510,7 @@ Only return valid JSON, no other text.`,
       },
     ], { ...options, model: options?.model || 'openai/gpt-4o' });
 
-    const extractedText = response.choices[0].message.content.trim();
+    const extractedText = response.choices[0]!.message.content.trim();
 
     // Confidence is estimated based on response characteristics
     const confidence = extractedText.length > 0 ? 0.85 : 0.5;

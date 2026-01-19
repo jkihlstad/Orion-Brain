@@ -18,7 +18,7 @@ import {
   OpenRouterAdapter,
   getDefaultAdapter,
 } from '../adapters/openrouter';
-import { generateId } from '../utils/math';
+// Unused import removed: generateId
 
 // ============================================================================
 // Types
@@ -95,16 +95,23 @@ export async function processImage(
 
   const processingTimeMs = Date.now() - startTime;
 
-  return {
+  const result: ImageProcessingResult = {
     embedding,
-    ocrText,
-    ocrConfidence,
     dimensions: {
       width: metadata.width,
       height: metadata.height,
     },
     processingTimeMs,
   };
+
+  if (ocrText !== undefined) {
+    result.ocrText = ocrText;
+  }
+  if (ocrConfidence !== undefined) {
+    result.ocrConfidence = ocrConfidence;
+  }
+
+  return result;
 }
 
 // ============================================================================
@@ -210,9 +217,9 @@ async function extractOcrText(
   adapter: OpenRouterAdapter,
   config: ImagePipelineConfig
 ): Promise<OcrResult> {
-  const result = await adapter.extractOcrText(imageUrl, {
+  const result = await adapter.extractOcrText(imageUrl, config.ocrModel ? {
     model: config.ocrModel,
-  });
+  } : {});
 
   return {
     text: result.text,
@@ -287,9 +294,9 @@ export function compareImages(
   let norm2 = 0;
 
   for (let i = 0; i < embedding1.values.length; i++) {
-    dotProduct += embedding1.values[i] * embedding2.values[i];
-    norm1 += embedding1.values[i] * embedding1.values[i];
-    norm2 += embedding2.values[i] * embedding2.values[i];
+    dotProduct += embedding1.values[i]! * embedding2.values[i]!;
+    norm1 += embedding1.values[i]! * embedding1.values[i]!;
+    norm2 += embedding2.values[i]! * embedding2.values[i]!;
   }
 
   return dotProduct / (Math.sqrt(norm1) * Math.sqrt(norm2));
@@ -336,7 +343,7 @@ export function isImageMimeType(mimeType: string): boolean {
 /**
  * Convert image URL to base64
  */
-export async function imageUrlToBase64(imageUrl: string): Promise<string> {
+export async function imageUrlToBase64(_imageUrl: string): Promise<string> {
   // TODO: Implement actual URL to base64 conversion
   // Options:
   // 1. Use fetch + arrayBuffer + Buffer.from()
@@ -353,8 +360,8 @@ export async function imageUrlToBase64(imageUrl: string): Promise<string> {
  * Get image dimensions from base64 data
  */
 export async function getBase64ImageDimensions(
-  base64Data: string,
-  mimeType: string = 'image/jpeg'
+  _base64Data: string,
+  _mimeType: string = 'image/jpeg'
 ): Promise<{ width: number; height: number }> {
   // TODO: Implement actual dimension extraction from base64
   // Options:

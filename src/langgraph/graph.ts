@@ -163,11 +163,11 @@ export const BrainStateAnnotation = Annotation.Root({
   eventType: Annotation<EventType | null>(),
   processingResult: Annotation<ProcessingResult | null>(),
   embeddings: Annotation<EmbeddingRecord[]>({
-    reducer: (current, update) => [...current, ...update],
+    reducer: (current: EmbeddingRecord[], update: EmbeddingRecord[]) => [...current, ...update],
     default: () => [],
   }),
   speakerUpdates: Annotation<SpeakerClusterUpdate[]>({
-    reducer: (current, update) => [...current, ...update],
+    reducer: (current: SpeakerClusterUpdate[], update: SpeakerClusterUpdate[]) => [...current, ...update],
     default: () => [],
   }),
   enrichments: Annotation<Enrichments | null>(),
@@ -271,16 +271,22 @@ class DeadLetterQueue {
     retryCount: number,
     state: Partial<BrainState>
   ): void {
+    const stateToStore: Partial<BrainState> = {};
+    if (state.eventId !== undefined) {
+      stateToStore.eventId = state.eventId;
+    }
+    if (state.eventType !== undefined) {
+      stateToStore.eventType = state.eventType;
+    }
+    if (state.errorMessage !== undefined) {
+      stateToStore.errorMessage = state.errorMessage;
+    }
     this.queue.push({
       eventId,
       error,
       timestamp: Date.now(),
       retryCount,
-      state: {
-        eventId: state.eventId,
-        eventType: state.eventType,
-        errorMessage: state.errorMessage,
-      },
+      state: stateToStore,
     });
 
     console.error(`[DLQ] Event ${eventId} added to dead letter queue: ${error}`);
@@ -296,10 +302,10 @@ class DeadLetterQueue {
 
   // Retry a specific event from DLQ
   async retry(eventId: string): Promise<boolean> {
-    const index = this.queue.findIndex((item) => item.eventId === eventId);
+    const index = this.queue.findIndex((_item) => _item.eventId === eventId);
     if (index === -1) return false;
 
-    const item = this.queue.splice(index, 1)[0];
+    this.queue.splice(index, 1);
     // Caller should re-invoke the graph with this eventId
     console.log(`[DLQ] Event ${eventId} removed for retry`);
     return true;
@@ -317,7 +323,7 @@ export const deadLetterQueue = new DeadLetterQueue();
  */
 async function fetchEvent(
   state: typeof BrainStateAnnotation.State,
-  config?: RunnableConfig
+  _config?: RunnableConfig
 ): Promise<Partial<typeof BrainStateAnnotation.State>> {
   const { eventId } = state;
 
@@ -358,11 +364,11 @@ async function fetchEvent(
 /**
  * Placeholder for Convex fetch - implement with actual Convex client
  */
-async function fetchEventFromConvex(eventId: string): Promise<ConvexEvent> {
+async function fetchEventFromConvex(_eventId: string): Promise<ConvexEvent> {
   // TODO: Implement with Convex client
   // import { ConvexClient } from 'convex/browser';
   // const client = new ConvexClient(process.env.CONVEX_URL!);
-  // return await client.query(api.events.getById, { id: eventId });
+  // return await client.query(api.events.getById, { id: _eventId });
 
   throw new Error('Convex client not implemented');
 }
@@ -378,14 +384,13 @@ function routeByModality(
   }
 
   switch (state.eventType) {
-    case 'audio_segment':
+    case 'audio':
       return 'embed_audio';
-    case 'video_segment':
+    case 'video':
       return 'embed_video';
-    case 'image_frame':
+    case 'image':
       return 'embed_image';
-    case 'text_event':
-    case 'browser_session':
+    case 'text':
       return 'embed_text';
     default:
       // Default to text for unknown types
@@ -398,7 +403,7 @@ function routeByModality(
  */
 async function embedText(
   state: typeof BrainStateAnnotation.State,
-  config?: RunnableConfig
+  _config?: RunnableConfig
 ): Promise<Partial<typeof BrainStateAnnotation.State>> {
   try {
     const { event } = state;
@@ -445,7 +450,7 @@ async function embedText(
  */
 async function embedAudio(
   state: typeof BrainStateAnnotation.State,
-  config?: RunnableConfig
+  _config?: RunnableConfig
 ): Promise<Partial<typeof BrainStateAnnotation.State>> {
   try {
     const { event } = state;
@@ -464,7 +469,6 @@ async function embedAudio(
         id: `${event._id}-audio-${index}`,
         vector: segment.embedding!,
         contentType: 'audio' as const,
-        contentHash: undefined,
         startTime: segment.startTime,
         endTime: segment.endTime,
         metadata: {
@@ -498,7 +502,7 @@ async function embedAudio(
  */
 async function embedVideo(
   state: typeof BrainStateAnnotation.State,
-  config?: RunnableConfig
+  _config?: RunnableConfig
 ): Promise<Partial<typeof BrainStateAnnotation.State>> {
   try {
     const { event } = state;
@@ -515,7 +519,6 @@ async function embedVideo(
       id: `${event._id}-video-${index}`,
       vector: frame.embedding,
       contentType: 'video' as const,
-      contentHash: undefined,
       startTime: frame.timestamp,
       endTime: frame.timestamp,
       metadata: {
@@ -546,7 +549,7 @@ async function embedVideo(
  */
 async function embedImage(
   state: typeof BrainStateAnnotation.State,
-  config?: RunnableConfig
+  _config?: RunnableConfig
 ): Promise<Partial<typeof BrainStateAnnotation.State>> {
   try {
     const { event } = state;
@@ -590,10 +593,10 @@ async function embedImage(
  */
 async function enrich(
   state: typeof BrainStateAnnotation.State,
-  config?: RunnableConfig
+  _config?: RunnableConfig
 ): Promise<Partial<typeof BrainStateAnnotation.State>> {
   try {
-    const { event, processingResult, embeddings } = state;
+    const { event, processingResult, embeddings: _embeddings } = state;
     if (!event) throw new Error('No event in state');
 
     // TODO: Replace with actual enrichment implementation
@@ -617,7 +620,7 @@ async function enrich(
  */
 async function storeVector(
   state: typeof BrainStateAnnotation.State,
-  config?: RunnableConfig
+  _config?: RunnableConfig
 ): Promise<Partial<typeof BrainStateAnnotation.State>> {
   try {
     const { embeddings, event, enrichments } = state;
@@ -667,7 +670,7 @@ async function storeVector(
  */
 async function updateGraph(
   state: typeof BrainStateAnnotation.State,
-  config?: RunnableConfig
+  _config?: RunnableConfig
 ): Promise<Partial<typeof BrainStateAnnotation.State>> {
   try {
     const { event, enrichments, speakerUpdates } = state;
@@ -720,7 +723,7 @@ async function updateGraph(
  */
 async function checkPrompt(
   state: typeof BrainStateAnnotation.State,
-  config?: RunnableConfig
+  _config?: RunnableConfig
 ): Promise<Partial<typeof BrainStateAnnotation.State>> {
   try {
     const { event, speakerUpdates, processingResult } = state;
@@ -731,7 +734,7 @@ async function checkPrompt(
     // Check for unknown speakers that need labeling
     if (speakerUpdates && speakerUpdates.length > 0) {
       const newClusters = speakerUpdates.filter(
-        (update) => update.action === 'create' && !update.labeledName
+        (update: SpeakerClusterUpdate) => update.action === 'create' && !update.labeledName
       );
 
       if (newClusters.length > 0) {
@@ -740,8 +743,7 @@ async function checkPrompt(
         if (audioResult?.unknownSpeakerDetected) {
           promptRequired = {
             type: 'speaker_label',
-            clusterId: newClusters[0].clusterId,
-            suggestedLabel: undefined,
+            clusterId: newClusters[0]!.clusterId,
             context: `New speaker detected in audio from ${new Date(event.timestamp).toLocaleString()}`,
             priority: 'medium',
             expiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000, // 7 days
@@ -777,7 +779,7 @@ function routePrompt(
  */
 async function createPrompt(
   state: typeof BrainStateAnnotation.State,
-  config?: RunnableConfig
+  _config?: RunnableConfig
 ): Promise<Partial<typeof BrainStateAnnotation.State>> {
   try {
     const { event, promptRequired } = state;
@@ -810,7 +812,7 @@ async function createPrompt(
  */
 async function finalize(
   state: typeof BrainStateAnnotation.State,
-  config?: RunnableConfig
+  _config?: RunnableConfig
 ): Promise<Partial<typeof BrainStateAnnotation.State>> {
   try {
     const { eventId, event, storageResults, graphResults } = state;
@@ -852,7 +854,7 @@ async function finalize(
  */
 async function handleError(
   state: typeof BrainStateAnnotation.State,
-  config?: RunnableConfig
+  _config?: RunnableConfig
 ): Promise<Partial<typeof BrainStateAnnotation.State>> {
   const { eventId, error, retryCount } = state;
 
@@ -914,29 +916,29 @@ function routeAfterError(
 
 // These functions are placeholders - implement with actual clients
 
-async function processTextEvent(event: ConvexEvent): Promise<TextProcessingResult> {
+async function processTextEvent(_event: ConvexEvent): Promise<TextProcessingResult> {
   // TODO: Implement with OpenRouter embedding API
   throw new Error('Text processing not implemented');
 }
 
-async function processAudioEvent(event: ConvexEvent): Promise<AudioProcessingResult> {
+async function processAudioEvent(_event: ConvexEvent): Promise<AudioProcessingResult> {
   // TODO: Implement with Whisper + speaker diarization
   throw new Error('Audio processing not implemented');
 }
 
-async function processVideoEvent(event: ConvexEvent): Promise<VideoProcessingResult> {
+async function processVideoEvent(_event: ConvexEvent): Promise<VideoProcessingResult> {
   // TODO: Implement with CLIP frame extraction
   throw new Error('Video processing not implemented');
 }
 
-async function processImageEvent(event: ConvexEvent): Promise<ImageProcessingResult> {
+async function processImageEvent(_event: ConvexEvent): Promise<ImageProcessingResult> {
   // TODO: Implement with CLIP + OCR
   throw new Error('Image processing not implemented');
 }
 
 async function enrichContent(
-  event: ConvexEvent,
-  processingResult: ProcessingResult | null
+  _event: ConvexEvent,
+  _processingResult: ProcessingResult | null
 ): Promise<Enrichments> {
   // TODO: Implement with LLM enrichment
   return {
@@ -953,8 +955,8 @@ async function enrichContent(
 
 async function storeTolanceDb(
   embeddings: EmbeddingRecord[],
-  event: ConvexEvent,
-  enrichments: Enrichments | null
+  _event: ConvexEvent,
+  _enrichments: Enrichments | null
 ): Promise<void> {
   // TODO: Implement with LanceDB client
   console.log(`[LanceDB] Would store ${embeddings.length} embeddings`);
@@ -962,8 +964,8 @@ async function storeTolanceDb(
 
 async function updateNeo4jGraph(
   event: ConvexEvent,
-  enrichments: Enrichments | null,
-  speakerUpdates: SpeakerClusterUpdate[]
+  _enrichments: Enrichments | null,
+  _speakerUpdates: SpeakerClusterUpdate[]
 ): Promise<{
   nodesCreated: number;
   nodesUpdated: number;
@@ -982,8 +984,8 @@ async function updateNeo4jGraph(
 
 async function createPromptInConvex(
   userId: string,
-  eventId: string,
-  prompt: PromptRequest
+  _eventId: string,
+  _prompt: PromptRequest
 ): Promise<void> {
   // TODO: Implement with Convex client
   console.log(`[Convex] Would create prompt for user ${userId}`);
@@ -1039,7 +1041,7 @@ export function createBrainGraph() {
  */
 export async function processEvent(
   eventId: string,
-  config?: Partial<BrainGraphConfig>
+  _config?: Partial<BrainGraphConfig>
 ): Promise<typeof BrainStateAnnotation.State> {
   const graph = createBrainGraph();
 
@@ -1085,7 +1087,7 @@ export async function processEvents(
     );
 
     batch.forEach((eventId, index) => {
-      results.set(eventId, batchResults[index]);
+      results.set(eventId, batchResults[index]!);
     });
   }
 

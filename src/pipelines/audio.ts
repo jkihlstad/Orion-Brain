@@ -18,7 +18,6 @@ import {
   SpeakerClusterUpdate,
   SentimentAnalysis,
   EmotionTag,
-  EmbeddingVector,
   MediaSource,
   PromptRequest,
   DEFAULT_PIPELINE_CONFIG,
@@ -26,14 +25,11 @@ import {
 import {
   OpenRouterAdapter,
   getDefaultAdapter,
-  TranscriptionResponse,
 } from '../adapters/openrouter';
 import {
   cosineSimilarity,
   normalize,
-  vectorMean,
   generateId,
-  IncrementalClusterer,
 } from '../utils/math';
 
 // ============================================================================
@@ -58,13 +54,6 @@ interface DiarizationResult {
     confidence: number;
   }[];
   speakerCount: number;
-}
-
-interface AudioPipelineContext {
-  config: AudioPipelineConfig;
-  adapter: OpenRouterAdapter;
-  existingClusters: SpeakerCluster[];
-  userId: string;
 }
 
 // ============================================================================
@@ -117,7 +106,7 @@ class SpeakerClusterManager {
       // Update centroid using weighted average
       const totalWeight = cluster.memberCount + 1;
       const newCentroid = cluster.centroid.map((v, i) =>
-        (v * cluster.memberCount + embedding[i]) / totalWeight
+        (v * cluster.memberCount + embedding[i]!) / totalWeight
       );
 
       // Update cluster
@@ -244,7 +233,7 @@ export async function processAudio(
 
   for (const segment of segmentsWithEmbeddings) {
     // Assign to cluster
-    const { clusterId, isNew, update } = clusterManager.assignToCluster(
+    const { clusterId, isNew: _isNew, update } = clusterManager.assignToCluster(
       segment.embedding,
       userId
     );
@@ -289,7 +278,7 @@ export async function processAudio(
   // Create prompt request for the first unlabeled cluster (if any)
   let promptRequired: PromptRequest | undefined;
   if (unlabeledClusters.length > 0) {
-    const clusterToLabel = unlabeledClusters[0];
+    const clusterToLabel = unlabeledClusters[0]!;
     promptRequired = {
       type: 'speaker_label',
       clusterId: clusterToLabel.id,
@@ -304,15 +293,20 @@ export async function processAudio(
 
   const processingTimeMs = Date.now() - startTime;
 
-  return {
+  const result: AudioProcessingResult & { promptRequired?: PromptRequest } = {
     segments: processedSegments,
     speakerClusters: uniqueUpdates,
     unknownSpeakerDetected,
     transcription: processedSegments.map(s => s.transcription).join(' '),
     duration: transcriptionResult.duration || 0,
     processingTimeMs,
-    promptRequired,
   };
+
+  if (promptRequired !== undefined) {
+    result.promptRequired = promptRequired;
+  }
+
+  return result;
 }
 
 // ============================================================================
@@ -476,11 +470,12 @@ export async function processAudioBatch(
       } else if (update.action === 'update') {
         const idx = currentClusters.findIndex(c => c.id === update.clusterId);
         if (idx >= 0) {
+          const existingCluster = currentClusters[idx]!;
           currentClusters[idx] = {
-            ...currentClusters[idx],
-            centroid: update.newCentroid || currentClusters[idx].centroid,
-            memberCount: update.memberCount || currentClusters[idx].memberCount,
-            occurrenceCount: update.occurrenceCount || currentClusters[idx].occurrenceCount,
+            ...existingCluster,
+            centroid: update.newCentroid || existingCluster.centroid,
+            memberCount: update.memberCount || existingCluster.memberCount,
+            occurrenceCount: update.occurrenceCount || existingCluster.occurrenceCount,
             lastUpdated: Date.now(),
           };
         }

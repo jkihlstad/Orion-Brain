@@ -11,9 +11,13 @@
 import type {
   SearchFilters,
   EventType,
-  PrivacyScope,
-  SentimentAnalysis,
 } from '../types/common';
+
+// Local SentimentAnalysis type (not exported from common)
+interface SentimentAnalysis {
+  label: 'positive' | 'negative' | 'neutral';
+  score: number;
+}
 
 // =============================================================================
 // TYPES
@@ -155,8 +159,8 @@ async function generateQueryEmbedding(query: string): Promise<number[]> {
     throw new Error(`Embedding generation failed: ${error}`);
   }
 
-  const data = await response.json();
-  return data.data[0].embedding;
+  const data = await response.json() as { data: Array<{ embedding: number[] }> };
+  return data.data[0]!.embedding;
 }
 
 // =============================================================================
@@ -170,10 +174,12 @@ async function generateQueryEmbedding(query: string): Promise<number[]> {
  */
 async function searchLanceDb(
   userId: string,
-  queryVector: number[],
+  _queryVector: number[],
   filters: SearchFilters,
-  limit: number
+  _limit: number
 ): Promise<VectorSearchResult[]> {
+  void _queryVector; // Will be used when LanceDB client is integrated
+  void _limit; // Will be used when LanceDB client is integrated
   // TODO: Replace with actual LanceDB client
   // import { lanceDbClient } from '../storage/lancedb';
 
@@ -268,6 +274,7 @@ async function enrichWithNeo4j(
 
 /**
  * Hydrate results with full event data from Convex if needed
+ * @internal Reserved for future implementation when Convex client is integrated
  */
 async function hydrateFromConvex(
   eventIds: string[]
@@ -280,6 +287,9 @@ async function hydrateFromConvex(
 
   return new Map();
 }
+
+// Export for future use
+export { hydrateFromConvex };
 
 // =============================================================================
 // RESULT TRANSFORMATION
@@ -311,25 +321,41 @@ function transformResults(
       // Generate highlights (simplified - in production use proper highlighting)
       const highlights = generateHighlights(text, 3);
 
+      // Build metadata with conditional optional properties
+      const metadata: SearchResultMetadata = {
+        source: (result.metadata.sourceApp as string) || 'unknown',
+        timestamp: result.timestamp,
+        contactNames: enrichment?.contactNames || [],
+      };
+      if (enrichment?.participants && enrichment.participants.length > 0) {
+        metadata.participants = enrichment.participants;
+      }
+      if (enrichment?.relatedTopics && enrichment.relatedTopics.length > 0) {
+        metadata.topics = enrichment.relatedTopics;
+      }
+      if (result.sentiment?.label) {
+        metadata.sentiment = result.sentiment.label;
+      }
+      if (enrichment?.sessionTitle) {
+        metadata.sessionTitle = enrichment.sessionTitle;
+      }
+
+      // Build content with conditional optional properties
+      const content: SearchResult['content'] = {
+        text: truncateText(text, 500),
+        modality: result.contentType,
+      };
+      if (result.metadata.summary !== undefined) {
+        content.summary = result.metadata.summary as string;
+      }
+
       return {
         id: result.id,
         eventId: result.eventId,
         score: result.score,
-        content: {
-          text: truncateText(text, 500),
-          summary: result.metadata.summary as string | undefined,
-          modality: result.contentType,
-        },
+        content,
         highlights,
-        metadata: {
-          source: result.metadata.sourceApp as string || 'unknown',
-          timestamp: result.timestamp,
-          participants: enrichment?.participants || [],
-          topics: enrichment?.relatedTopics || [],
-          sentiment: result.sentiment?.label,
-          sessionTitle: enrichment?.sessionTitle,
-          contactNames: enrichment?.contactNames || [],
-        },
+        metadata,
       };
     });
 }
@@ -523,9 +549,11 @@ export async function multimodalSearch(
  */
 export async function searchSimilarSpeakers(
   userId: string,
-  speakerEmbedding: number[],
-  limit: number = 10
+  _speakerEmbedding: number[],
+  _limit: number = 10
 ): Promise<Array<{ clusterId: string; similarity: number; name?: string }>> {
+  void _speakerEmbedding; // Will be used when speaker cluster search is implemented
+  void _limit; // Will be used when speaker cluster search is implemented
   // TODO: Implement speaker similarity search
   // Search speaker_clusters table in LanceDB
 
@@ -557,8 +585,9 @@ export async function searchByContact(
 export async function searchBySession(
   userId: string,
   sessionId: string,
-  limit: number = 100
+  _limit: number = 100
 ): Promise<SearchResult[]> {
+  void _limit; // Will be used when session-based search is implemented
   // TODO: Implement session-based search
   // Query Neo4j for all events in session, then fetch from LanceDB
 
@@ -576,13 +605,14 @@ export async function searchBySession(
  */
 export async function getSearchFacets(
   userId: string,
-  timeRange?: { start: number; end: number }
+  _timeRange?: { start: number; end: number }
 ): Promise<{
   modalities: Array<{ type: EventType; count: number }>;
   sources: Array<{ name: string; count: number }>;
   contacts: Array<{ id: string; name: string; count: number }>;
   topics: Array<{ name: string; count: number }>;
 }> {
+  void _timeRange; // Will be used when facet aggregation is implemented
   // TODO: Implement facet aggregation
   // Query LanceDB/Neo4j for aggregated counts
 
@@ -604,11 +634,13 @@ export async function getSearchFacets(
  * Log search query for analytics (privacy-preserving)
  */
 export async function logSearchQuery(
-  userId: string,
-  query: string,
+  _userId: string,
+  _query: string,
   resultCount: number,
   latencyMs: number
 ): Promise<void> {
+  void _userId; // Will be used for user-specific analytics
+  void _query; // Will be hashed/anonymized for privacy-preserving analytics
   // TODO: Implement search analytics logging
   // Store anonymized/hashed query data for improving search
 

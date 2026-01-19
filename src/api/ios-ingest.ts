@@ -128,7 +128,7 @@ const iOSIngestPayloadSchema = z.object({
   mediaType: iOSMediaTypeSchema,
   filePath: z.string().min(1, 'filePath is required'),
   userId: z.string().min(1, 'userId is required'),
-  metadata: z.record(z.unknown()).optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
   timestamp: z.number().optional(),
   privacyScope: z.enum(['private', 'social', 'public']).optional().default('private'),
 });
@@ -189,15 +189,25 @@ function updateTaskStatus(
   const existing = taskStore.get(taskId);
   const now = Date.now();
 
-  taskStore.set(taskId, {
+  const record: TaskRecord = {
     taskId,
     status,
     progress: updates.progress ?? existing?.progress ?? 0,
-    result: updates.result ?? existing?.result,
-    error: updates.error ?? existing?.error,
     createdAt: existing?.createdAt ?? now,
     updatedAt: now,
-  });
+  };
+
+  // Only add optional properties if they have actual values
+  const result = updates.result ?? existing?.result;
+  if (result !== undefined) {
+    record.result = result;
+  }
+  const error = updates.error ?? existing?.error;
+  if (error !== undefined) {
+    record.error = error;
+  }
+
+  taskStore.set(taskId, record);
 }
 
 /**
@@ -234,10 +244,11 @@ async function handleIngest(req: Request, res: Response): Promise<void> {
     const validationResult = iOSIngestRequestSchema.safeParse(req.body);
 
     if (!validationResult.success) {
+      const body = req.body as { taskId?: string } | undefined;
       res.status(400).json({
         success: false,
-        error: validationResult.error.errors.map(e => `${e.path.join('.')}: ${e.message}`).join(', '),
-        taskId: req.body?.taskId || 'unknown',
+        error: validationResult.error.issues.map((e) => `${e.path.join('.')}: ${e.message}`).join(', '),
+        taskId: body?.taskId || 'unknown',
       } as iOSIngestResponse);
       return;
     }
@@ -316,11 +327,12 @@ async function handleIngest(req: Request, res: Response): Promise<void> {
       } as iOSIngestResponse);
     }
   } catch (error) {
+    const body = req.body as { taskId?: string } | undefined;
     console.error('[iOS Ingest] Error:', error);
     res.status(500).json({
       success: false,
       error: 'Internal server error',
-      taskId: req.body?.taskId || 'unknown',
+      taskId: body?.taskId || 'unknown',
     } as iOSIngestResponse);
   }
 }
@@ -340,7 +352,7 @@ async function handleBatchIngest(req: Request, res: Response): Promise<void> {
         results: [],
         totalSucceeded: 0,
         totalFailed: 0,
-        error: validationResult.error.errors.map(e => `${e.path.join('.')}: ${e.message}`).join(', '),
+        error: validationResult.error.issues.map((e) => `${e.path.join('.')}: ${e.message}`).join(', '),
       });
       return;
     }
@@ -442,7 +454,8 @@ async function handleBatchIngest(req: Request, res: Response): Promise<void> {
  */
 async function handleTaskStatus(req: Request, res: Response): Promise<void> {
   try {
-    const { taskId } = req.params;
+    const taskIdParam = req.params.taskId;
+    const taskId = Array.isArray(taskIdParam) ? taskIdParam[0] : taskIdParam;
 
     if (!taskId) {
       res.status(400).json({
@@ -469,12 +482,19 @@ async function handleTaskStatus(req: Request, res: Response): Promise<void> {
     const response: TaskStatusResponse = {
       taskId: task.taskId,
       status: task.status,
-      progress: task.progress,
-      result: task.result,
-      error: task.error,
       createdAt: task.createdAt,
       updatedAt: task.updatedAt,
     };
+    // Only add optional properties if they have values
+    if (task.progress !== undefined) {
+      response.progress = task.progress;
+    }
+    if (task.result !== undefined) {
+      response.result = task.result;
+    }
+    if (task.error !== undefined) {
+      response.error = task.error;
+    }
 
     res.json(response);
   } catch (error) {
@@ -501,7 +521,7 @@ export function createiOSIngestRouter(): Router {
   // Apply Clerk authentication to all routes
   router.use(clerkAuth({
     skipPaths: [], // All paths require auth
-  }));
+  }) as express.RequestHandler);
 
   // POST /v1/brain/ios/ingest - Single media ingestion
   router.post('/ingest', handleIngest as express.RequestHandler);

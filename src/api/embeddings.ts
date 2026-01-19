@@ -147,7 +147,7 @@ const sourceAppSchema = z.enum(['ios_browser', 'ios_native', 'web_extension', 'a
 const embeddingStoreRequestSchema = z.object({
   userId: z.string().min(1, 'userId is required'),
   vector: z.array(z.number()).min(1, 'vector must have at least 1 dimension'),
-  metadata: z.record(z.string()),
+  metadata: z.record(z.string(), z.string()),
   eventId: z.string().optional(),
   eventType: eventTypeSchema.optional().default('text_event'),
   privacyScope: privacyScopeSchema.optional().default('private'),
@@ -250,7 +250,7 @@ async function handleStore(req: Request, res: Response): Promise<void> {
     if (!validationResult.success) {
       res.status(400).json({
         success: false,
-        error: validationResult.error.errors.map(e => `${e.path.join('.')}: ${e.message}`).join(', '),
+        error: validationResult.error.issues.map((e) => `${e.path.join('.')}: ${e.message}`).join(', '),
       } as EmbeddingStoreResponse);
       return;
     }
@@ -280,23 +280,23 @@ async function handleStore(req: Request, res: Response): Promise<void> {
       // For now, store as text event - can be extended to support other types
       const rowId = await adapter.insertTextEvent({
         userId,
-        sourceApp: sourceApp || 'ios_native',
-        eventType: eventType || 'text_event',
-        privacyScope: privacyScope || 'private',
+        sourceApp: sourceApp ?? 'ios_native',
+        eventType: eventType ?? 'text_event',
+        privacyScope: privacyScope ?? 'private',
         timestamp: ts,
-        contactId: metadata.contactId || null,
-        clusterId: metadata.clusterId || null,
+        contactId: metadata['contactId'] || null,
+        clusterId: metadata['clusterId'] || null,
         eventId: generatedEventId,
         textVector: vector,
-        content: metadata.content || '',
-        contentType: metadata.contentType || 'embedding',
+        content: metadata['content'] || '',
+        contentType: metadata['contentType'] || 'embedding',
         charCount: 0,
         wordCount: 0,
-        language: metadata.language || 'en',
+        language: metadata['language'] || 'en',
         sentiment: null,
-        sourceUrl: metadata.sourceUrl || null,
-        pageTitle: metadata.pageTitle || null,
-        entitiesJson: metadata.entitiesJson || null,
+        sourceUrl: metadata['sourceUrl'] || null,
+        pageTitle: metadata['pageTitle'] || null,
+        entitiesJson: metadata['entitiesJson'] || null,
       });
 
       const response: EmbeddingStoreResponse = {
@@ -337,7 +337,7 @@ async function handleSearch(req: Request, res: Response): Promise<void> {
       res.status(400).json({
         success: false,
         results: [],
-        error: validationResult.error.errors.map(e => `${e.path.join('.')}: ${e.message}`).join(', '),
+        error: validationResult.error.issues.map((e) => `${e.path.join('.')}: ${e.message}`).join(', '),
       } as EmbeddingSearchResponse);
       return;
     }
@@ -358,16 +358,28 @@ async function handleSearch(req: Request, res: Response): Promise<void> {
     // Get LanceDB adapter
     const adapter = await getLanceDBAdapter();
 
-    // Build search filters
+    // Build search filters - only add optional properties if they have values
     const searchFilters: SearchFilters = {
       userId, // CRITICAL: Always filter by user ID for data isolation
-      eventTypes: filters?.eventTypes,
-      privacyScopes: filters?.privacyScopes,
-      timestampStart: filters?.timestampStart,
-      timestampEnd: filters?.timestampEnd,
-      contactId: filters?.contactId,
-      sourceApps: filters?.sourceApps,
     };
+    if (filters?.eventTypes) {
+      searchFilters.eventTypes = filters.eventTypes;
+    }
+    if (filters?.privacyScopes) {
+      searchFilters.privacyScopes = filters.privacyScopes;
+    }
+    if (filters?.timestampStart !== undefined) {
+      searchFilters.timestampStart = filters.timestampStart;
+    }
+    if (filters?.timestampEnd !== undefined) {
+      searchFilters.timestampEnd = filters.timestampEnd;
+    }
+    if (filters?.contactId) {
+      searchFilters.contactId = filters.contactId;
+    }
+    if (filters?.sourceApps) {
+      searchFilters.sourceApps = filters.sourceApps;
+    }
 
     try {
       // Search text events (primary table for embeddings)
@@ -437,7 +449,7 @@ async function handleBatchStore(req: Request, res: Response): Promise<void> {
         results: [],
         totalSucceeded: 0,
         totalFailed: 0,
-        error: validationResult.error.errors.map(e => `${e.path.join('.')}: ${e.message}`).join(', '),
+        error: validationResult.error.issues.map((e) => `${e.path.join('.')}: ${e.message}`).join(', '),
       });
       return;
     }
@@ -469,23 +481,23 @@ async function handleBatchStore(req: Request, res: Response): Promise<void> {
 
         const rowId = await adapter.insertTextEvent({
           userId: embedding.userId,
-          sourceApp: embedding.sourceApp || 'ios_native',
-          eventType: embedding.eventType || 'text_event',
-          privacyScope: embedding.privacyScope || 'private',
+          sourceApp: embedding.sourceApp ?? 'ios_native',
+          eventType: embedding.eventType ?? 'text_event',
+          privacyScope: embedding.privacyScope ?? 'private',
           timestamp: ts,
-          contactId: embedding.metadata.contactId || null,
-          clusterId: embedding.metadata.clusterId || null,
+          contactId: embedding.metadata['contactId'] || null,
+          clusterId: embedding.metadata['clusterId'] || null,
           eventId: generatedEventId,
           textVector: embedding.vector,
-          content: embedding.metadata.content || '',
-          contentType: embedding.metadata.contentType || 'embedding',
+          content: embedding.metadata['content'] || '',
+          contentType: embedding.metadata['contentType'] || 'embedding',
           charCount: 0,
           wordCount: 0,
-          language: embedding.metadata.language || 'en',
+          language: embedding.metadata['language'] || 'en',
           sentiment: null,
-          sourceUrl: embedding.metadata.sourceUrl || null,
-          pageTitle: embedding.metadata.pageTitle || null,
-          entitiesJson: embedding.metadata.entitiesJson || null,
+          sourceUrl: embedding.metadata['sourceUrl'] || null,
+          pageTitle: embedding.metadata['pageTitle'] || null,
+          entitiesJson: embedding.metadata['entitiesJson'] || null,
         });
 
         results.push({
@@ -561,7 +573,8 @@ async function handleRetrieve(req: Request, res: Response): Promise<void> {
  */
 async function handleDelete(req: Request, res: Response): Promise<void> {
   try {
-    const { embeddingId } = req.params;
+    const embeddingIdParam = req.params.embeddingId;
+    const embeddingId = Array.isArray(embeddingIdParam) ? embeddingIdParam[0] : embeddingIdParam;
     const _authenticatedUserId = getUserId(req);
     void _authenticatedUserId; // Will be used for ownership verification before delete
 
@@ -620,7 +633,7 @@ export function createEmbeddingsRouter(): Router {
   // Apply Clerk authentication to all routes
   router.use(clerkAuth({
     skipPaths: [], // All paths require auth
-  }));
+  }) as express.RequestHandler);
 
   // POST /v1/brain/embeddings/store - Store single embedding
   router.post('/store', handleStore as express.RequestHandler);

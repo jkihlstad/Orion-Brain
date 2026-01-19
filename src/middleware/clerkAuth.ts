@@ -8,8 +8,37 @@
  * @author Sub-Agent 3: Orchestration + API Engineer
  */
 
-import { Request, Response, NextFunction } from 'express';
-import * as jose from 'jose';
+// Note: These types are used for documentation and future Express/jose integration
+// When implementing, add express and jose as dependencies
+type Request = {
+  path: string;
+  headers: { authorization?: string };
+  auth?: AuthContext;
+};
+type Response = {
+  status: (code: number) => { json: (body: unknown) => void };
+};
+type NextFunction = () => void;
+
+// jose types for JWT verification (stub for now)
+declare namespace jose {
+  interface JWTVerifyResult {
+    payload: unknown;
+  }
+  type JWTVerifyGetKey = unknown;
+  function createRemoteJWKSet(url: URL): JWTVerifyGetKey;
+  function jwtVerify(
+    token: string,
+    key: JWTVerifyGetKey | CryptoKey,
+    options?: { issuer?: string; audience?: string | string[]; clockTolerance?: number }
+  ): Promise<JWTVerifyResult>;
+  function importSPKI(pem: string, alg: string): Promise<CryptoKey>;
+  namespace errors {
+    class JWTExpired extends Error {}
+    class JWTClaimValidationFailed extends Error {}
+    class JWSSignatureVerificationFailed extends Error {}
+  }
+}
 
 // =============================================================================
 // TYPES
@@ -142,19 +171,25 @@ async function verifyClerkToken(
     if (config.publicKeySource === 'jwks' && config.jwksUrl) {
       // Verify using JWKS
       const jwks = await getJWKSClient(config.jwksUrl);
-      verifyResult = await jose.jwtVerify(token, jwks, {
+      const verifyOptions: { issuer?: string; audience?: string | string[]; clockTolerance?: number } = {
         issuer: config.issuer,
-        audience: config.audience,
         clockTolerance: config.clockTolerance,
-      });
+      };
+      if (config.audience !== undefined) {
+        verifyOptions.audience = config.audience;
+      }
+      verifyResult = await jose.jwtVerify(token, jwks, verifyOptions);
     } else if (config.publicKeySource === 'pem' && config.publicKey) {
       // Verify using PEM public key
       const publicKey = await jose.importSPKI(config.publicKey, 'RS256');
-      verifyResult = await jose.jwtVerify(token, publicKey, {
+      const verifyOptions: { issuer?: string; audience?: string | string[]; clockTolerance?: number } = {
         issuer: config.issuer,
-        audience: config.audience,
         clockTolerance: config.clockTolerance,
-      });
+      };
+      if (config.audience !== undefined) {
+        verifyOptions.audience = config.audience;
+      }
+      verifyResult = await jose.jwtVerify(token, publicKey, verifyOptions);
     } else {
       throw new Error('Invalid auth configuration: missing public key source');
     }
@@ -180,7 +215,7 @@ async function verifyClerkToken(
       throw new AuthError('INVALID_SIGNATURE', 'Token signature verification failed');
     }
 
-    throw new AuthError('VERIFICATION_FAILED', `Token verification failed: ${error}`);
+    throw new AuthError('VERIFICATION_FAILED', `Token verification failed: ${error instanceof Error ? error.message : String(error)}`);
   }
 }
 
@@ -205,11 +240,11 @@ function extractBearerToken(authHeader: string | undefined): string | null {
   if (!authHeader) return null;
 
   const parts = authHeader.split(' ');
-  if (parts.length !== 2 || parts[0].toLowerCase() !== 'bearer') {
+  if (parts.length !== 2 || parts[0]!.toLowerCase() !== 'bearer') {
     return null;
   }
 
-  return parts[1];
+  return parts[1] ?? null;
 }
 
 // =============================================================================
@@ -275,15 +310,15 @@ export function clerkAuth(options: ClerkAuthMiddlewareOptions = {}) {
         throw new AuthError('ORG_REQUIRED', 'Organization membership required');
       }
 
-      // Build auth context
+      // Build auth context - only add optional properties if they have values
       const auth: AuthContext = {
         userId: payload.sub,
-        sessionId: payload.sid,
-        orgId: payload.org_id,
-        orgRole: payload.org_role,
         permissions: payload.org_permissions || [],
         isInternal: false,
         raw: payload,
+        ...(payload.sid !== undefined && { sessionId: payload.sid }),
+        ...(payload.org_id !== undefined && { orgId: payload.org_id }),
+        ...(payload.org_role !== undefined && { orgRole: payload.org_role }),
       };
 
       // Attach to request
@@ -446,7 +481,7 @@ export function requireOrgRole(allowedRoles: string[]) {
 /**
  * Get user ID from request (throws if not authenticated)
  */
-export function getUserId(req: Request): string {
+export function getUserId(req: { auth?: AuthContext }): string {
   if (!req.auth) {
     throw new AuthError('NOT_AUTHENTICATED', 'User not authenticated');
   }
@@ -456,14 +491,14 @@ export function getUserId(req: Request): string {
 /**
  * Get user ID from request (returns null if not authenticated)
  */
-export function getUserIdOptional(req: Request): string | null {
+export function getUserIdOptional(req: { auth?: AuthContext }): string | null {
   return req.auth?.userId || null;
 }
 
 /**
  * Check if request is authenticated
  */
-export function isAuthenticated(req: Request): boolean {
+export function isAuthenticated(req: { auth?: AuthContext }): boolean {
   return !!req.auth;
 }
 
@@ -481,11 +516,9 @@ export function isAuthenticated(req: Request): boolean {
  * ```
  */
 export function createMockAuth(overrides: Partial<AuthContext> = {}): AuthContext {
-  return {
+  const base: AuthContext = {
     userId: 'test-user-id',
     sessionId: 'test-session-id',
-    orgId: undefined,
-    orgRole: undefined,
     permissions: [],
     isInternal: false,
     raw: {
@@ -496,6 +529,6 @@ export function createMockAuth(overrides: Partial<AuthContext> = {}): AuthContex
       iat: Date.now() / 1000,
       sid: 'test-session-id',
     },
-    ...overrides,
   };
+  return { ...base, ...overrides };
 }

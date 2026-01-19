@@ -12,9 +12,6 @@ import {
   BaseMetadata,
   EMBEDDING_DIMENSIONS,
   SCHEMA_VERSION,
-  PrivacyScope,
-  EventType,
-  SourceApp,
 } from '../types/common';
 
 // =============================================================================

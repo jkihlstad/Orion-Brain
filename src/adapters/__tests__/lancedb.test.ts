@@ -5,7 +5,7 @@
  * insert operations, search operations, and filter building.
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { LanceDBAdapter, LanceDBConfig, LANCEDB_TABLES } from '../lancedb';
 
 // =============================================================================
@@ -555,7 +555,7 @@ describe('LanceDBAdapter - Filter Building', () => {
       queryVector: new Array(1536).fill(0.1),
       topK: 10,
       filters: {
-        sourceApps: ['ios_browser' as const, 'macos_app' as const],
+        sourceApps: ['ios_browser' as const, 'ios_native' as const],
       },
     };
 

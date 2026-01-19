@@ -27,7 +27,9 @@ export class BrainError extends Error {
     this.name = 'BrainError';
     this.code = code;
     this.statusCode = statusCode;
-    this.details = details;
+    if (details !== undefined) {
+      this.details = details;
+    }
     this.timestamp = Date.now();
 
     // Ensure proper prototype chain
@@ -74,9 +76,15 @@ export class ValidationError extends BrainError {
   public readonly field?: string;
 
   constructor(message: string, field?: string, details?: Record<string, unknown>) {
-    super('VALIDATION_ERROR', message, 400, { ...details, field });
+    const errorDetails: Record<string, unknown> = { ...details };
+    if (field !== undefined) {
+      errorDetails.field = field;
+    }
+    super('VALIDATION_ERROR', message, 400, errorDetails);
     this.name = 'ValidationError';
-    this.field = field;
+    if (field !== undefined) {
+      this.field = field;
+    }
   }
 }
 
@@ -91,10 +99,16 @@ export class NotFoundError extends BrainError {
     const message = resourceId
       ? `${resource} with ID '${resourceId}' not found`
       : `${resource} not found`;
-    super('NOT_FOUND', message, 404, { resource, resourceId });
+    const details: Record<string, unknown> = { resource };
+    if (resourceId !== undefined) {
+      details.resourceId = resourceId;
+    }
+    super('NOT_FOUND', message, 404, details);
     this.name = 'NotFoundError';
     this.resource = resource;
-    this.resourceId = resourceId;
+    if (resourceId !== undefined) {
+      this.resourceId = resourceId;
+    }
   }
 }
 
@@ -115,9 +129,15 @@ export class RateLimitError extends BrainError {
   public readonly retryAfter?: number;
 
   constructor(message: string = 'Too many requests', retryAfter?: number) {
-    super('RATE_LIMITED', message, 429, { retryAfter });
+    const details: Record<string, unknown> = {};
+    if (retryAfter !== undefined) {
+      details.retryAfter = retryAfter;
+    }
+    super('RATE_LIMITED', message, 429, Object.keys(details).length > 0 ? details : undefined);
     this.name = 'RateLimitError';
-    this.retryAfter = retryAfter;
+    if (retryAfter !== undefined) {
+      this.retryAfter = retryAfter;
+    }
   }
 }
 
@@ -134,14 +154,19 @@ export class ExternalServiceError extends BrainError {
     originalError?: Error,
     details?: Record<string, unknown>
   ) {
-    super('EXTERNAL_SERVICE_ERROR', `${service}: ${message}`, 502, {
+    const errorDetails: Record<string, unknown> = {
       ...details,
       service,
-      originalMessage: originalError?.message,
-    });
+    };
+    if (originalError?.message) {
+      errorDetails.originalMessage = originalError.message;
+    }
+    super('EXTERNAL_SERVICE_ERROR', `${service}: ${message}`, 502, errorDetails);
     this.name = 'ExternalServiceError';
     this.service = service;
-    this.originalError = originalError;
+    if (originalError !== undefined) {
+      this.originalError = originalError;
+    }
   }
 }
 
@@ -158,10 +183,21 @@ export class ProcessingError extends BrainError {
     stage?: string,
     details?: Record<string, unknown>
   ) {
-    super('PROCESSING_ERROR', message, 500, { ...details, eventId, stage });
+    const errorDetails: Record<string, unknown> = { ...details };
+    if (eventId !== undefined) {
+      errorDetails.eventId = eventId;
+    }
+    if (stage !== undefined) {
+      errorDetails.stage = stage;
+    }
+    super('PROCESSING_ERROR', message, 500, errorDetails);
     this.name = 'ProcessingError';
-    this.eventId = eventId;
-    this.stage = stage;
+    if (eventId !== undefined) {
+      this.eventId = eventId;
+    }
+    if (stage !== undefined) {
+      this.stage = stage;
+    }
   }
 }
 

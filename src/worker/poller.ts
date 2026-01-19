@@ -98,7 +98,7 @@ export class EventPoller {
 
   private pollTimer: NodeJS.Timeout | null = null;
   private healthCheckTimer: NodeJS.Timeout | null = null;
-  private shutdownPromise: Promise<void> | null = null;
+  private currentShutdownPromise: Promise<void> | null = null;
   private shutdownResolve: (() => void) | null = null;
 
   private processor: EventProcessor;
@@ -152,7 +152,7 @@ export class EventPoller {
     this.state = 'stopping';
 
     // Create a shutdown promise
-    this.shutdownPromise = new Promise((resolve) => {
+    this.currentShutdownPromise = new Promise((resolve) => {
       this.shutdownResolve = resolve;
     });
 
@@ -281,7 +281,7 @@ export class EventPoller {
     // Process all events in parallel
     const results = await Promise.all(
       events.map((event, index) =>
-        this.processSingleEvent(event, leases[index])
+        this.processSingleEvent(event, leases[index]!)
       )
     );
 
@@ -495,6 +495,13 @@ export class EventPoller {
    */
   getHealthCheck(): HealthCheckResult {
     return this.healthMonitor.getHealthCheck();
+  }
+
+  /**
+   * Get the current shutdown promise (if shutting down).
+   */
+  getShutdownPromise(): Promise<void> | null {
+    return this.currentShutdownPromise;
   }
 
   // ===========================================================================

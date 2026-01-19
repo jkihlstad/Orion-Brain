@@ -39,6 +39,9 @@ import type {
 } from '../schemas/lancedb-tables';
 import { LANCEDB_TABLES } from '../schemas/lancedb-tables';
 
+// Re-export for external use
+export { LANCEDB_TABLES } from '../schemas/lancedb-tables';
+
 // =============================================================================
 // CONFIGURATION
 // =============================================================================
@@ -140,6 +143,16 @@ export class LanceDBAdapter {
       // });
 
       // Mock connection for development
+      const createMockSearchBuilder = () => {
+        const builder: Record<string, unknown> = {
+          execute: async () => [],
+          limit: () => builder,
+          where: () => builder,
+          select: () => builder,
+        };
+        return builder;
+      };
+
       this.connection = {
         uri: this.config.uri,
         tableNames: async () => [],
@@ -147,15 +160,7 @@ export class LanceDBAdapter {
           ({
             name,
             add: async () => {},
-            search: () => ({
-              limit: () => ({
-                where: () => ({
-                  select: () => ({
-                    execute: async () => [],
-                  }),
-                }),
-              }),
-            }),
+            search: () => createMockSearchBuilder(),
             update: async () => 0,
             delete: async () => 0,
             countRows: async () => 0,
@@ -164,15 +169,7 @@ export class LanceDBAdapter {
           ({
             name,
             add: async () => {},
-            search: () => ({
-              limit: () => ({
-                where: () => ({
-                  select: () => ({
-                    execute: async () => [],
-                  }),
-                }),
-              }),
-            }),
+            search: () => createMockSearchBuilder(),
             update: async () => 0,
             delete: async () => 0,
             countRows: async () => 0,

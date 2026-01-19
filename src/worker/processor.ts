@@ -233,7 +233,7 @@ export class EventProcessor {
 
   constructor(
     private config: WorkerConfig,
-    private convexAdapter: ConvexLeaseAdapter,
+    convexAdapter: ConvexLeaseAdapter,
     private healthMonitor: HealthMonitor,
   ) {
     this.leaseRenewalManager = new LeaseRenewalManager(
@@ -334,15 +334,20 @@ export class EventProcessor {
       this.healthMonitor.recordNonRetryableError();
     }
 
-    return {
+    const result: ProcessingResult = {
       success: false,
       eventId,
       processingTimeMs,
       retryable: classification.retryable,
       error: classification.message,
       errorCode: classification.code,
-      brainState,
     };
+
+    if (brainState !== undefined) {
+      result.brainState = brainState;
+    }
+
+    return result;
   }
 
   /**
@@ -362,7 +367,7 @@ export class EventProcessor {
 
       const chunkResults = await Promise.all(
         chunk.map((event, index) =>
-          this.processEvent(event, chunkLeases[index])
+          this.processEvent(event, chunkLeases[index]!)
         )
       );
 

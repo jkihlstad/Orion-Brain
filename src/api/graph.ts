@@ -193,13 +193,13 @@ const addRelationshipRequestSchema = z.object({
   fromUserId: z.string().min(1, 'fromUserId is required'),
   toUserId: z.string().min(1, 'toUserId is required'),
   type: relationshipTypeSchema,
-  properties: z.record(z.unknown()).optional(),
+  properties: z.record(z.string(), z.unknown()).optional(),
 });
 
 const updateNodeRequestSchema = z.object({
   nodeId: z.string().min(1, 'nodeId is required'),
   nodeType: nodeTypeSchema,
-  properties: z.record(z.unknown()).refine(obj => Object.keys(obj).length > 0, 'At least one property is required'),
+  properties: z.record(z.string(), z.unknown()).refine(obj => Object.keys(obj).length > 0, 'At least one property is required'),
 });
 
 const pathQueryRequestSchema = z.object({
@@ -213,7 +213,7 @@ const pathQueryRequestSchema = z.object({
 
 const createNodeRequestSchema = z.object({
   nodeType: nodeTypeSchema,
-  properties: z.record(z.unknown()).refine(obj => Object.keys(obj).length > 0, 'At least one property is required'),
+  properties: z.record(z.string(), z.unknown()).refine(obj => Object.keys(obj).length > 0, 'At least one property is required'),
 });
 
 // =============================================================================
@@ -254,7 +254,7 @@ async function handleAddRelationship(req: Request, res: Response): Promise<void>
     if (!validationResult.success) {
       res.status(400).json({
         success: false,
-        error: validationResult.error.errors.map(e => `${e.path.join('.')}: ${e.message}`).join(', '),
+        error: validationResult.error.issues.map((e) => `${e.path.join('.')}: ${e.message}`).join(', '),
       } as AddRelationshipResponse);
       return;
     }
@@ -389,7 +389,7 @@ async function handleUpdateNode(req: Request, res: Response): Promise<void> {
     if (!validationResult.success) {
       res.status(400).json({
         success: false,
-        error: validationResult.error.errors.map(e => `${e.path.join('.')}: ${e.message}`).join(', '),
+        error: validationResult.error.issues.map((e) => `${e.path.join('.')}: ${e.message}`).join(', '),
       } as UpdateNodeResponse);
       return;
     }
@@ -493,7 +493,7 @@ async function handlePathQuery(req: Request, res: Response): Promise<void> {
       res.status(400).json({
         success: false,
         paths: [],
-        error: validationResult.error.errors.map(e => `${e.path.join('.')}: ${e.message}`).join(', '),
+        error: validationResult.error.issues.map((e) => `${e.path.join('.')}: ${e.message}`).join(', '),
       } as PathQueryResponse);
       return;
     }
@@ -699,7 +699,7 @@ async function handleCreateNode(req: Request, res: Response): Promise<void> {
     if (!validationResult.success) {
       res.status(400).json({
         success: false,
-        error: validationResult.error.errors.map(e => `${e.path.join('.')}: ${e.message}`).join(', '),
+        error: validationResult.error.issues.map((e) => `${e.path.join('.')}: ${e.message}`).join(', '),
       } as CreateNodeResponse);
       return;
     }
@@ -902,7 +902,7 @@ export function createGraphRouter(): Router {
   // Apply Clerk authentication to all routes
   router.use(clerkAuth({
     skipPaths: [], // All paths require auth
-  }));
+  }) as express.RequestHandler);
 
   // POST /v1/brain/graph/relationship - Add relationship
   router.post('/relationship', handleAddRelationship as express.RequestHandler);
