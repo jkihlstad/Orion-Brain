@@ -27,7 +27,7 @@ export async function fetchRawEventsByTraceId(
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "x-gateway-secret": env.CONVEX_GATEWAY_SHARED_SECRET,
+      "Authorization": `Bearer ${env.CONVEX_GATEWAY_SHARED_SECRET}`,
     },
     body: JSON.stringify({
       traceId,
