@@ -11,7 +11,10 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint src --ext .ts",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "seed:demo": "tsx scripts/seed-demo/index.ts",
+    "seed:demo:clear": "tsx scripts/seed-demo/index.ts --clear",
+    "seed:convex": "tsx scripts/seed-demo/insertEventsToConvex.ts"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20260101.0",
@@ -19,6 +22,7 @@
     "@typescript-eslint/eslint-plugin": "^6.19.0",
     "@typescript-eslint/parser": "^6.19.0",
     "eslint": "^8.56.0",
+    "tsx": "^4.21.0",
     "typescript": "^5.3.3",
     "vitest": "^1.2.0",
     "wrangler": "^3.91.0"

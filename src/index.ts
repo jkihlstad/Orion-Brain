@@ -10,6 +10,7 @@ import {
   handleGetRankingExplanation,
 } from "./marketplace";
 import { routeExchangeRequest } from "./exchange";
+import { routeDemoRequest } from "./api/demo";
 
 /**
  * Response structure for the consumeOnce endpoint.
@@ -217,6 +218,18 @@ export default {
       const exchangeResponse = await routeExchangeRequest(request, env);
       if (exchangeResponse) {
         return exchangeResponse;
+      }
+    }
+
+    // ==========================================================================
+    // DEMO ROUTES (Public, No Authentication Required)
+    // ==========================================================================
+
+    // Try Demo routes - no authentication required
+    if (path.startsWith("/api/demo/")) {
+      const demoResponse = await routeDemoRequest(request, env);
+      if (demoResponse) {
+        return demoResponse;
       }
     }
 

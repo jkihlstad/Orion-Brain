@@ -140,3 +140,20 @@ export type {
   RecomputeResponse,
   SubmitResponse,
 } from './profile';
+
+// Demo (Public API - No Authentication)
+export {
+  routeDemoRequest,
+  handleDemoSearch,
+  handleDemoUsers,
+  handleDemoInsights,
+  handleDemoEvents,
+  handleDemoCors,
+} from './demo';
+
+export type {
+  DemoSearchResult,
+  DemoUser,
+  DemoInsight,
+  DemoEvent,
+} from './demo';

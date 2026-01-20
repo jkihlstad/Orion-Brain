@@ -4,8 +4,11 @@ import type { RawEvent } from "../types/rawEvent";
 /**
  * Response structure from the Convex rawByTraceId endpoint.
  */
-interface ConvexRawEventsResponse {
-  events: RawEvent[];
+interface ConvexRawEventResponse {
+  success: boolean;
+  traceId: string;
+  event: RawEvent | null;
+  requestId?: string;
 }
 
 /**
@@ -42,6 +45,11 @@ export async function fetchRawEventsByTraceId(
     );
   }
 
-  const data = (await response.json()) as ConvexRawEventsResponse;
-  return data.events;
+  const data = (await response.json()) as ConvexRawEventResponse;
+
+  // Return event as array for compatibility (rawByTraceId returns single event)
+  if (data.event) {
+    return [data.event];
+  }
+  return [];
 }
