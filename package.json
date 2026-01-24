@@ -14,7 +14,10 @@
     "test:watch": "vitest",
     "seed:demo": "tsx scripts/seed-demo/index.ts",
     "seed:demo:clear": "tsx scripts/seed-demo/index.ts --clear",
-    "seed:convex": "tsx scripts/seed-demo/insertEventsToConvex.ts"
+    "seed:convex": "tsx scripts/seed-demo/insertEventsToConvex.ts",
+    "seed:marketplace": "tsx scripts/seed-demo/seedMarketplace.ts",
+    "seed:marketplace:clear": "tsx scripts/seed-demo/seedMarketplace.ts --clear",
+    "seed:marketplace:export": "tsx scripts/seed-demo/seedMarketplace.ts --export-lancedb"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20260101.0",
