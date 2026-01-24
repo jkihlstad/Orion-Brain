@@ -219,11 +219,147 @@ export interface RankTrace {
 // =============================================================================
 
 /**
+ * Calculate text similarity score between query and business text.
+ * Uses keyword matching with TF-IDF-like weighting.
+ */
+function calculateTextSimilarity(query: string, businessText: string): number {
+  const queryWords = query.toLowerCase().split(/\s+/).filter(w => w.length > 2);
+  const textWords = businessText.toLowerCase().split(/\s+/);
+
+  if (queryWords.length === 0) return 0;
+
+  let matchCount = 0;
+  let partialMatchCount = 0;
+
+  for (const queryWord of queryWords) {
+    // Check for exact word match
+    if (textWords.includes(queryWord)) {
+      matchCount++;
+    } else {
+      // Check for partial match (word contains query term or vice versa)
+      for (const textWord of textWords) {
+        if (textWord.includes(queryWord) || queryWord.includes(textWord)) {
+          partialMatchCount++;
+          break;
+        }
+      }
+    }
+  }
+
+  // Calculate similarity: exact matches worth more than partial
+  const exactScore = matchCount / queryWords.length;
+  const partialScore = (partialMatchCount / queryWords.length) * 0.5;
+
+  return Math.min(1.0, exactScore + partialScore);
+}
+
+/**
  * Demo marketplace data for MVP demonstration.
  * Returns sample businesses with realistic proof-of-work metrics.
+ * Filters and ranks results based on the search query.
  */
-function getDemoMarketplaceResults(limit: number): MarketplaceSearchResult[] {
+function getDemoMarketplaceResults(limit: number, query?: string): MarketplaceSearchResult[] {
   const demoBusinesses: MarketplaceSearchResult[] = [
+    // Automotive Services
+    {
+      row: {
+        id: 'demo-auto-1',
+        businessId: 'biz-precision-auto',
+        ownerId: 'owner-auto-1',
+        offeringId: 'off-engine-repair',
+        textVector: [],
+        businessName: 'Precision Auto Care',
+        businessDescription: 'Full-service auto repair shop specializing in engine diagnostics, cooling system repair, and overheating issues for all makes and models including Mazda, Honda, Toyota.',
+        primaryCategory: 'Automotive Services',
+        tagsJson: JSON.stringify(['auto repair', 'engine repair', 'cooling system', 'overheating', 'radiator', 'mazda', 'car repair']),
+        offeringTitle: 'Engine & Cooling System Repair',
+        offeringDescription: 'Expert diagnosis and repair of engine overheating issues, radiator leaks, thermostat replacement, and coolant system maintenance.',
+        offeringType: 'service',
+        serviceAreaType: 'radius',
+        serviceAreaLat: 34.0522,
+        serviceAreaLng: -118.2437,
+        serviceAreaRadiusMiles: 30,
+        serviceAreaRegionsJson: null,
+        businessStatus: 'active',
+        isVerified: true,
+        proofSharingEnabled: true,
+        verifiedProofCount: 18,
+        totalCompletions: 156,
+        exactTagMatches: 0,
+        lastVerifiedAt: Date.now() - 1 * 24 * 60 * 60 * 1000,
+        createdAt: Date.now() - 365 * 24 * 60 * 60 * 1000,
+        updatedAt: Date.now(),
+        schemaVersion: '1.0.0',
+      },
+      similarity: 0.95,
+      distance: 0.05,
+    },
+    {
+      row: {
+        id: 'demo-auto-2',
+        businessId: 'biz-joes-garage',
+        ownerId: 'owner-auto-2',
+        offeringId: 'off-cooling-repair',
+        textVector: [],
+        businessName: "Joe's Import Auto Garage",
+        businessDescription: 'Specialized repair shop for Japanese imports including Mazda, Honda, Nissan, and Toyota. Expert in cooling system diagnostics and engine overheating repair.',
+        primaryCategory: 'Automotive Services',
+        tagsJson: JSON.stringify(['mazda repair', 'japanese imports', 'cooling system', 'overheating repair', 'radiator service', 'honda', 'toyota']),
+        offeringTitle: 'Import Car Cooling System Service',
+        offeringDescription: 'Specialized cooling system repair for Mazda and other Japanese imports. Radiator replacement, thermostat repair, water pump service.',
+        offeringType: 'service',
+        serviceAreaType: 'radius',
+        serviceAreaLat: 33.9425,
+        serviceAreaLng: -118.4081,
+        serviceAreaRadiusMiles: 25,
+        serviceAreaRegionsJson: null,
+        businessStatus: 'active',
+        isVerified: true,
+        proofSharingEnabled: true,
+        verifiedProofCount: 24,
+        totalCompletions: 203,
+        exactTagMatches: 0,
+        lastVerifiedAt: Date.now() - 2 * 24 * 60 * 60 * 1000,
+        createdAt: Date.now() - 500 * 24 * 60 * 60 * 1000,
+        updatedAt: Date.now(),
+        schemaVersion: '1.0.0',
+      },
+      similarity: 0.93,
+      distance: 0.07,
+    },
+    {
+      row: {
+        id: 'demo-auto-3',
+        businessId: 'biz-quick-radiator',
+        ownerId: 'owner-auto-3',
+        offeringId: 'off-radiator-service',
+        textVector: [],
+        businessName: 'Quick Radiator & Auto Repair',
+        businessDescription: 'Radiator specialists offering same-day cooling system repairs. We fix overheating problems in all vehicles - domestic and import.',
+        primaryCategory: 'Automotive Services',
+        tagsJson: JSON.stringify(['radiator repair', 'overheating fix', 'cooling system', 'auto repair', 'same day service']),
+        offeringTitle: 'Radiator & Overheating Repair',
+        offeringDescription: 'Fast radiator repair and replacement. Diagnose and fix car overheating issues. Coolant flush and thermostat replacement available.',
+        offeringType: 'service',
+        serviceAreaType: 'radius',
+        serviceAreaLat: 34.1478,
+        serviceAreaLng: -118.1445,
+        serviceAreaRadiusMiles: 20,
+        serviceAreaRegionsJson: null,
+        businessStatus: 'active',
+        isVerified: true,
+        proofSharingEnabled: true,
+        verifiedProofCount: 15,
+        totalCompletions: 89,
+        exactTagMatches: 0,
+        lastVerifiedAt: Date.now() - 3 * 24 * 60 * 60 * 1000,
+        createdAt: Date.now() - 200 * 24 * 60 * 60 * 1000,
+        updatedAt: Date.now(),
+        schemaVersion: '1.0.0',
+      },
+      similarity: 0.88,
+      distance: 0.12,
+    },
     {
       row: {
         id: 'demo-1',
@@ -556,7 +692,40 @@ function getDemoMarketplaceResults(limit: number): MarketplaceSearchResult[] {
     },
   ];
 
-  return demoBusinesses.slice(0, limit);
+  // If no query provided, return all results
+  if (!query || query.trim().length === 0) {
+    return demoBusinesses.slice(0, limit);
+  }
+
+  // Calculate similarity scores based on the actual query
+  const scoredResults = demoBusinesses.map(business => {
+    const searchableText = [
+      business.row.businessName,
+      business.row.businessDescription || '',
+      business.row.offeringTitle || '',
+      business.row.offeringDescription || '',
+      business.row.primaryCategory,
+      ...(JSON.parse(business.row.tagsJson) as string[]),
+    ].join(' ');
+
+    const similarity = calculateTextSimilarity(query, searchableText);
+
+    return {
+      ...business,
+      similarity,
+      distance: 1 - similarity,
+    };
+  });
+
+  // Filter out results with very low similarity (less than 0.1)
+  const filteredResults = scoredResults.filter(r => r.similarity >= 0.1);
+
+  // Sort by similarity (highest first)
+  filteredResults.sort((a, b) => b.similarity - a.similarity);
+
+  console.log(`[Demo Search] Query: "${query}" - Found ${filteredResults.length} relevant results`);
+
+  return filteredResults.slice(0, limit);
 }
 
 // =============================================================================
@@ -827,7 +996,8 @@ async function searchLanceDb(
   _env: Env,
   queryVector: number[],
   filters: MarketplaceSearchFilters,
-  limit: number
+  limit: number,
+  queryText?: string
 ): Promise<MarketplaceSearchResult[]> {
   // TODO: Replace with actual LanceDB client
   // const lancedb = await createLanceDBAdapter(env.LANCEDB_URI);
@@ -860,11 +1030,13 @@ async function searchLanceDb(
 
   console.log(`[Marketplace LanceDB] Would search with filter: ${whereClause}`);
   console.log(`[Marketplace LanceDB] Query vector length: ${queryVector.length}`);
+  console.log(`[Marketplace LanceDB] Query text: "${queryText}"`);
   console.log(`[Marketplace LanceDB] Limit: ${limit}`);
 
   // Demo mode: Return sample marketplace data for MVP demonstration
+  // Filter demo results based on actual query text
   // TODO: Replace with actual LanceDB client implementation
-  return getDemoMarketplaceResults(limit);
+  return getDemoMarketplaceResults(limit, queryText);
 }
 
 /**
@@ -966,7 +1138,8 @@ export async function marketplaceSearch(
       env,
       queryVector,
       request.filters ?? {},
-      effectiveLimit * 2 // Fetch extra for post-filtering
+      effectiveLimit * 2, // Fetch extra for post-filtering
+      request.query // Pass query text for demo filtering
     );
 
     // Filter by minimum similarity
