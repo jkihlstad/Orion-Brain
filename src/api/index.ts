@@ -157,3 +157,19 @@ export type {
   DemoInsight,
   DemoEvent,
 } from './demo';
+
+// Vector Coverage (Dashboard Diagnostics)
+export {
+  routeVectorCoverageRequest,
+  handleGetCoverageMetrics,
+  handleVectorHealth,
+  handleGetEventVectorStatus,
+  handleVectorSearch,
+} from './vector-coverage';
+
+export type {
+  CoverageMetricsResponse,
+  VectorHealthResponse,
+  EventVectorStatusResponse,
+  VectorSearchResponse,
+} from './vector-coverage';

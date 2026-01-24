@@ -11,6 +11,7 @@ import {
 } from "./marketplace";
 import { routeExchangeRequest } from "./exchange";
 import { routeDemoRequest } from "./api/demo";
+import { routeVectorCoverageRequest } from "./api/vector-coverage";
 
 /**
  * Response structure for the consumeOnce endpoint.
@@ -231,6 +232,16 @@ export default {
       if (demoResponse) {
         return demoResponse;
       }
+    }
+
+    // ==========================================================================
+    // VECTOR COVERAGE ROUTES (Dashboard Diagnostics)
+    // ==========================================================================
+
+    // Vector coverage endpoints for monitoring vectorization health
+    if (path.startsWith("/api/vectors/")) {
+      const vectorPath = path.replace("/api/vectors", "");
+      return routeVectorCoverageRequest(request, env, vectorPath);
     }
 
     // 404 for unknown routes

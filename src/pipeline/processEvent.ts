@@ -38,6 +38,11 @@ import {
   createStatusWriter,
   type ProcessingStatus,
 } from './statusWriter';
+import {
+  createVectorizationPipeline,
+  type VectorizationPipeline,
+} from '../vectorize';
+import type { Env } from '../env';
 
 // =============================================================================
 // TYPE DEFINITIONS
@@ -122,6 +127,9 @@ export interface BatchProcessingResult {
  * Configuration for the event processor.
  */
 export interface EventProcessorConfig {
+  /** Environment bindings (required for vectorization) */
+  env?: Env;
+
   /** Neo4j client instance */
   neo4jClient?: Neo4jClient;
 
@@ -156,9 +164,11 @@ export class EventProcessor {
   private neo4jClient: Neo4jClient | null;
   private statusWriter: StatusWriter;
   private mappingCache: Map<string, EventMapping> = new Map();
+  private vectorizationPipeline: VectorizationPipeline | null = null;
 
   constructor(config: EventProcessorConfig = {}) {
     this.config = {
+      env: config.env ?? null,
       neo4jClient: config.neo4jClient ?? null,
       statusWriter: config.statusWriter ?? createStatusWriter(),
       mappingsDir: config.mappingsDir ?? './mappings',
@@ -170,6 +180,11 @@ export class EventProcessor {
 
     this.neo4jClient = this.config.neo4jClient ?? getDefaultClient();
     this.statusWriter = this.config.statusWriter;
+
+    // Initialize vectorization pipeline if env is provided
+    if (this.config.env) {
+      this.vectorizationPipeline = createVectorizationPipeline(this.config.env);
+    }
   }
 
   // ===========================================================================
@@ -235,11 +250,17 @@ export class EventProcessor {
         }
       }
 
-      // Step 4: Process vector if required (placeholder for future implementation)
-      const vectorUpserted = false;
+      // Step 4: Process vector if required
+      let vectorUpserted = false;
       if (requirements.vectorRequired) {
-        // TODO: Implement vector processing
-        warnings.push('Vector processing not yet implemented');
+        const vectorResult = await this.processVectorOperations(event);
+        vectorUpserted = vectorResult.success;
+        errors.push(...vectorResult.errors);
+        warnings.push(...vectorResult.warnings);
+
+        if (!vectorResult.success && !this.config.continueOnError) {
+          throw new Error(`Vector processing failed: ${vectorResult.errors.join(', ')}`);
+        }
       }
 
       // Step 5: Process LLM enrichment if required (placeholder for future implementation)
@@ -447,6 +468,81 @@ export class EventProcessor {
       return { success: false, operationsCount: 0, errors, warnings };
     }
   }
+
+  // ===========================================================================
+  // VECTOR PROCESSING
+  // ===========================================================================
+
+  /**
+   * Processes vector operations for an event.
+   */
+  private async processVectorOperations(
+    event: QueuedEvent
+  ): Promise<{
+    success: boolean;
+    errors: string[];
+    warnings: string[];
+  }> {
+    const errors: string[] = [];
+    const warnings: string[] = [];
+
+    if (!this.vectorizationPipeline) {
+      errors.push('Vectorization pipeline not configured (missing env)');
+      return { success: false, errors, warnings };
+    }
+
+    try {
+      // Ensure pipeline is initialized
+      await this.vectorizationPipeline.initialize();
+
+      // Convert QueuedEvent to RawEvent format for vectorization
+      const rawEvent = {
+        eventId: event.eventId,
+        traceId: event.eventId, // Use eventId as traceId if not available
+        clerkUserId: event.userId,
+        eventType: event.eventType,
+        sourceApp: (event.payload.sourceApp as string) || 'unknown',
+        domain: event.eventType.split('.')[0] || 'unknown',
+        timestampMs: event.timestamp,
+        receivedAtMs: Date.now(),
+        privacyScope: (event.payload.privacyScope as string) || 'private',
+        consentVersion: (event.payload.consentVersion as string) || '1.0',
+        payload: event.payload,
+        blobRefs: (event.payload.blobRefs as string[]) || [],
+        payloadPreview: JSON.stringify(event.payload).slice(0, 500),
+      };
+
+      const result = await this.vectorizationPipeline.vectorizeEvent(rawEvent);
+
+      if (result.skipped) {
+        warnings.push('Event skipped by vectorization policy');
+        return { success: true, errors, warnings };
+      }
+
+      if (!result.success) {
+        errors.push(result.error || 'Vectorization failed');
+        return { success: false, errors, warnings };
+      }
+
+      console.log(
+        `[EventProcessor] Vectorized event ${event.eventId}: ` +
+          `${result.embeddingsGenerated} embeddings, ${result.entitiesLinked} entities linked`
+      );
+
+      return { success: true, errors, warnings };
+    } catch (error) {
+      errors.push(
+        `Vectorization failed: ${
+          error instanceof Error ? error.message : 'Unknown error'
+        }`
+      );
+      return { success: false, errors, warnings };
+    }
+  }
+
+  // ===========================================================================
+  // MAPPING MANAGEMENT
+  // ===========================================================================
 
   /**
    * Loads a mapping for an event type.
